@@ -19,7 +19,7 @@
 
 ### Быстрый старт
 
-Для непосредственного взаимодействия с OpenAPI нужно создать клиента. Клиенты разделены на streaming market data и rest trading
+Для непосредственного взаимодействия с OpenAPI нужно создать клиента. Клиенты разделены на streaming и rest.
 
 ```go
 package main
@@ -36,12 +36,12 @@ func main() {
 
 	logger := log.New(os.Stdout, "", log.LstdFlags)
 
-	streamClient, err := sdk.NewMarketClient(logger, token)
+	streamClient, err := sdk.NewStreamingClient(logger, token)
 	if err != nil {
 		logger.Fatalln(err)
 	}
 
-	restClient := sdk.NewTradingClient(token)
+	restClient := sdk.NewRestClient(token)
 }
 ```
 

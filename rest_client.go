@@ -13,22 +13,22 @@ import (
 	"github.com/pkg/errors"
 )
 
-const TradingApiURL = "https://api-invest.tinkoff.ru/openapi"
+const RestApiURL = "https://api-invest.tinkoff.ru/openapi"
 
 var ErrNotFound = errors.New("Not found")
 
-type TradingClient struct {
+type RestClient struct {
 	httpClient *http.Client
 	token      string
 	apiURL     string
 }
 
-func NewTradingClient(token string) *TradingClient {
-	return NewTradingClientCustom(token, TradingApiURL)
+func NewRestClient(token string) *RestClient {
+	return NewRestClientCustom(token, RestApiURL)
 }
 
-func NewTradingClientCustom(token, apiURL string) *TradingClient {
-	return &TradingClient{
+func NewRestClientCustom(token, apiURL string) *RestClient {
+	return &RestClient{
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -37,7 +37,7 @@ func NewTradingClientCustom(token, apiURL string) *TradingClient {
 	}
 }
 
-func (c *TradingClient) SearchInstrumentByFIGI(figi string) (Instrument, error) {
+func (c *RestClient) SearchInstrumentByFIGI(figi string) (Instrument, error) {
 	path := c.apiURL + "/market/search/by-figi?figi=" + figi
 
 	req, err := c.newRequest(http.MethodGet, path, nil)
@@ -62,37 +62,37 @@ func (c *TradingClient) SearchInstrumentByFIGI(figi string) (Instrument, error) 
 	return resp.Payload, nil
 }
 
-func (c *TradingClient) SearchInstrumentByTicker(ticker string) ([]Instrument, error) {
+func (c *RestClient) SearchInstrumentByTicker(ticker string) ([]Instrument, error) {
 	path := c.apiURL + "/market/search/by-ticker?ticker=" + ticker
 
 	return c.instruments(path)
 }
 
-func (c *TradingClient) Currencies() ([]Instrument, error) {
+func (c *RestClient) Currencies() ([]Instrument, error) {
 	path := c.apiURL + "/market/currencies"
 
 	return c.instruments(path)
 }
 
-func (c *TradingClient) ETFs() ([]Instrument, error) {
+func (c *RestClient) ETFs() ([]Instrument, error) {
 	path := c.apiURL + "/market/etfs"
 
 	return c.instruments(path)
 }
 
-func (c *TradingClient) Bonds() ([]Instrument, error) {
+func (c *RestClient) Bonds() ([]Instrument, error) {
 	path := c.apiURL + "/market/bonds"
 
 	return c.instruments(path)
 }
 
-func (c *TradingClient) Stocks() ([]Instrument, error) {
+func (c *RestClient) Stocks() ([]Instrument, error) {
 	path := c.apiURL + "/market/stocks"
 
 	return c.instruments(path)
 }
 
-func (c *TradingClient) instruments(path string) ([]Instrument, error) {
+func (c *RestClient) instruments(path string) ([]Instrument, error) {
 	req, err := c.newRequest(http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (c *TradingClient) instruments(path string) ([]Instrument, error) {
 	return resp.Payload.Instruments, nil
 }
 
-func (c *TradingClient) Operations(from time.Time, interval OperationInterval, figi string) ([]Operation, error) {
+func (c *RestClient) Operations(from time.Time, interval OperationInterval, figi string) ([]Operation, error) {
 	q := url.Values{
 		"from":     []string{from.Format(time.RFC3339)},
 		"interval": []string{string(interval)},
@@ -150,7 +150,7 @@ func (c *TradingClient) Operations(from time.Time, interval OperationInterval, f
 	return resp.Payload, nil
 }
 
-func (c *TradingClient) Portfolio() (Portfolio, error) {
+func (c *RestClient) Portfolio() (Portfolio, error) {
 	positions, err := c.PositionsPortfolio()
 	if err != nil {
 		return Portfolio{}, err
@@ -167,7 +167,7 @@ func (c *TradingClient) Portfolio() (Portfolio, error) {
 	}, nil
 }
 
-func (c *TradingClient) PositionsPortfolio() ([]PositionBalance, error) {
+func (c *RestClient) PositionsPortfolio() ([]PositionBalance, error) {
 	path := c.apiURL + "/portfolio"
 
 	req, err := c.newRequest(http.MethodGet, path, nil)
@@ -194,7 +194,7 @@ func (c *TradingClient) PositionsPortfolio() ([]PositionBalance, error) {
 	return resp.Payload.Positions, nil
 }
 
-func (c *TradingClient) CurrenciesPortfolio() ([]CurrencyBalance, error) {
+func (c *RestClient) CurrenciesPortfolio() ([]CurrencyBalance, error) {
 	path := c.apiURL + "/portfolio/currencies"
 
 	req, err := c.newRequest(http.MethodGet, path, nil)
@@ -221,13 +221,13 @@ func (c *TradingClient) CurrenciesPortfolio() ([]CurrencyBalance, error) {
 	return resp.Payload.Currencies, nil
 }
 
-func (c *TradingClient) OrderCancel(id string) error {
+func (c *RestClient) OrderCancel(id string) error {
 	path := c.apiURL + "/orders/cancel?orderId=" + id
 
 	return c.postJSONThrow(path, nil)
 }
 
-func (c *TradingClient) LimitOrder(figi string, lots int, operation OperationType, price float64) (PlacedLimitOrder, error) {
+func (c *RestClient) LimitOrder(figi string, lots int, operation OperationType, price float64) (PlacedLimitOrder, error) {
 	path := c.apiURL + "/orders/limit-order?figi=" + figi
 
 	payload := struct {
@@ -263,7 +263,7 @@ func (c *TradingClient) LimitOrder(figi string, lots int, operation OperationTyp
 	return resp.Payload, nil
 }
 
-func (c *TradingClient) Orders() ([]Order, error) {
+func (c *RestClient) Orders() ([]Order, error) {
 	path := c.apiURL + "/orders"
 
 	req, err := c.newRequest(http.MethodGet, path, nil)
@@ -288,7 +288,7 @@ func (c *TradingClient) Orders() ([]Order, error) {
 	return resp.Payload, nil
 }
 
-func (c *TradingClient) postJSONThrow(url string, body interface{}) error {
+func (c *RestClient) postJSONThrow(url string, body interface{}) error {
 	var bb []byte
 	var err error
 
@@ -308,7 +308,7 @@ func (c *TradingClient) postJSONThrow(url string, body interface{}) error {
 	return err
 }
 
-func (c *TradingClient) newRequest(method, url string, body io.Reader) (*http.Request, error) {
+func (c *RestClient) newRequest(method, url string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, errors.Errorf("can't create http request to %s", url)
@@ -320,7 +320,7 @@ func (c *TradingClient) newRequest(method, url string, body io.Reader) (*http.Re
 	return req, nil
 }
 
-func (c *TradingClient) doRequest(req *http.Request) ([]byte, error) {
+func (c *RestClient) doRequest(req *http.Request) ([]byte, error) {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, errors.Wrapf(err, "can't do request to %s", req.URL.RawPath)

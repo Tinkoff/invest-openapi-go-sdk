@@ -11,25 +11,25 @@ import (
 	"github.com/pkg/errors"
 )
 
-const MarketApiURL = "wss://api-invest.tinkoff.ru/openapi/md/v1/md-openapi/ws"
+const StreamingApiURL = "wss://api-invest.tinkoff.ru/openapi/md/v1/md-openapi/ws"
 
 type Logger interface {
 	Printf(format string, args ...interface{})
 }
 
-type MarketClient struct {
+type StreamingClient struct {
 	logger Logger
 	conn   *websocket.Conn
 	token  string
 	apiURL string
 }
 
-func NewMarketClient(logger Logger, token string) (*MarketClient, error) {
-	return NewMarketClientCustom(logger, token, MarketApiURL)
+func NewStreamingClient(logger Logger, token string) (*StreamingClient, error) {
+	return NewStreamingClientCustom(logger, token, StreamingApiURL)
 }
 
-func NewMarketClientCustom(logger Logger, token, apiURL string) (*MarketClient, error) {
-	client := &MarketClient{
+func NewStreamingClientCustom(logger Logger, token, apiURL string) (*StreamingClient, error) {
+	client := &StreamingClient{
 		logger: logger,
 		token:  token,
 		apiURL: apiURL,
@@ -44,11 +44,11 @@ func NewMarketClientCustom(logger Logger, token, apiURL string) (*MarketClient, 
 	return client, nil
 }
 
-func (c *MarketClient) Close() error {
+func (c *StreamingClient) Close() error {
 	return c.conn.Close()
 }
 
-func (c *MarketClient) RunReadLoop(fn func(event interface{}) error) error {
+func (c *StreamingClient) RunReadLoop(fn func(event interface{}) error) error {
 	for {
 		_, msg, err := c.conn.ReadMessage()
 		if err != nil {
@@ -104,7 +104,7 @@ func (c *MarketClient) RunReadLoop(fn func(event interface{}) error) error {
 	}
 }
 
-func (c *MarketClient) SubscribeCandle(figi string, interval CandleInterval, requestID string) error {
+func (c *StreamingClient) SubscribeCandle(figi string, interval CandleInterval, requestID string) error {
 	sub := `{ "event": "candle:subscribe", "request_id": "` + requestID + `", "figi": "` + figi + `", "interval": "` + string(interval) + `"}`
 
 	if err := c.conn.WriteMessage(websocket.TextMessage, []byte(sub)); err != nil {
@@ -114,7 +114,7 @@ func (c *MarketClient) SubscribeCandle(figi string, interval CandleInterval, req
 	return nil
 }
 
-func (c *MarketClient) UnsubscribeCandle(figi string, interval CandleInterval, requestID string) error {
+func (c *StreamingClient) UnsubscribeCandle(figi string, interval CandleInterval, requestID string) error {
 	sub := `{ "event": "candle:unsubscribe", "request_id": "` + requestID + `", "figi": "` + figi + `", "interval": "` + string(interval) + `"}`
 	if err := c.conn.WriteMessage(websocket.TextMessage, []byte(sub)); err != nil {
 		return errors.Wrap(err, "can't unsubscribe from event")
@@ -123,7 +123,7 @@ func (c *MarketClient) UnsubscribeCandle(figi string, interval CandleInterval, r
 	return nil
 }
 
-func (c *MarketClient) SubscribeOrderbook(figi string, depth int, requestID string) error {
+func (c *StreamingClient) SubscribeOrderbook(figi string, depth int, requestID string) error {
 	const maxDepth = 20
 	if depth < 1 || depth > maxDepth {
 		return errors.New("invalid depth. Should be in interval 0 < x <= 20")
@@ -137,7 +137,7 @@ func (c *MarketClient) SubscribeOrderbook(figi string, depth int, requestID stri
 	return nil
 }
 
-func (c *MarketClient) UnsubscribeOrderbook(figi string, depth int, requestID string) error {
+func (c *StreamingClient) UnsubscribeOrderbook(figi string, depth int, requestID string) error {
 	const maxDepth = 20
 	if depth < 1 || depth > maxDepth {
 		return errors.New("invalid depth. Should be in interval 0 < x <= 20")
@@ -151,7 +151,7 @@ func (c *MarketClient) UnsubscribeOrderbook(figi string, depth int, requestID st
 	return nil
 }
 
-func (c *MarketClient) SubscribeInstrumentInfo(figi, requestID string) error {
+func (c *StreamingClient) SubscribeInstrumentInfo(figi, requestID string) error {
 	sub := `{"event": "instrument_info:subscribe", "request_id": "` + requestID + `", "figi": "` + figi + `"}`
 	if err := c.conn.WriteMessage(websocket.TextMessage, []byte(sub)); err != nil {
 		return errors.Wrap(err, "can't subscribe to event")
@@ -160,7 +160,7 @@ func (c *MarketClient) SubscribeInstrumentInfo(figi, requestID string) error {
 	return nil
 }
 
-func (c *MarketClient) UnsubscribeInstrumentInfo(figi, requestID string) error {
+func (c *StreamingClient) UnsubscribeInstrumentInfo(figi, requestID string) error {
 	sub := `{"event": "instrument_info:unsubscribe", "request_id": "` + requestID + `", "figi": "` + figi + `"}`
 	if err := c.conn.WriteMessage(websocket.TextMessage, []byte(sub)); err != nil {
 		return errors.Wrap(err, "can't unsubscribe from event")
@@ -169,7 +169,7 @@ func (c *MarketClient) UnsubscribeInstrumentInfo(figi, requestID string) error {
 	return nil
 }
 
-func (c *MarketClient) connect() (*websocket.Conn, error) {
+func (c *StreamingClient) connect() (*websocket.Conn, error) {
 	dialer := websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
 		HandshakeTimeout: 5 * time.Second,

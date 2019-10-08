@@ -20,24 +20,6 @@ const (
 	CandleInterval1Month CandleInterval = "month"
 )
 
-func CandleIntervalsMap() map[CandleInterval]bool {
-	return map[CandleInterval]bool{
-		CandleInterval1Min:   true,
-		CandleInterval2Min:   true,
-		CandleInterval3Min:   true,
-		CandleInterval5Min:   true,
-		CandleInterval10Min:  true,
-		CandleInterval15Min:  true,
-		CandleInterval30Min:  true,
-		CandleInterval1Hour:  true,
-		CandleInterval2Hour:  true,
-		CandleInterval4Hour:  true,
-		CandleInterval1Day:   true,
-		CandleInterval1Week:  true,
-		CandleInterval1Month: true,
-	}
-}
-
 type TradingStatus string
 
 const (

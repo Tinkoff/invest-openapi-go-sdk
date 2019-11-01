@@ -2,6 +2,8 @@ package sdk
 
 import "time"
 
+const MaxOrderbookDepth = 20
+
 type CandleInterval string
 
 const (

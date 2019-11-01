@@ -123,10 +123,11 @@ func (c *StreamingClient) UnsubscribeCandle(figi string, interval CandleInterval
 	return nil
 }
 
+var ErrDepth = errors.Errorf("invalid depth. Should be in interval 0 < x <= %d", MaxOrderbookDepth)
+
 func (c *StreamingClient) SubscribeOrderbook(figi string, depth int, requestID string) error {
-	const maxDepth = 20
-	if depth < 1 || depth > maxDepth {
-		return errors.New("invalid depth. Should be in interval 0 < x <= 20")
+	if depth < 1 || depth > MaxOrderbookDepth {
+		return ErrDepth
 	}
 
 	sub := `{ "event": "orderbook:subscribe", "request_id": "` + requestID + `", "figi": "` + figi + `", "depth": ` + strconv.Itoa(depth) + `}`
@@ -138,9 +139,8 @@ func (c *StreamingClient) SubscribeOrderbook(figi string, depth int, requestID s
 }
 
 func (c *StreamingClient) UnsubscribeOrderbook(figi string, depth int, requestID string) error {
-	const maxDepth = 20
-	if depth < 1 || depth > maxDepth {
-		return errors.New("invalid depth. Should be in interval 0 < x <= 20")
+	if depth < 1 || depth > MaxOrderbookDepth {
+		return ErrDepth
 	}
 
 	sub := `{ "event": "orderbook:unsubscribe", "request_id": "` + requestID + `", "figi": "` + figi + `", "depth": ` + strconv.Itoa(depth) + `}`

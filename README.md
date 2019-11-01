@@ -28,13 +28,13 @@ import (
 	"log"
 	"os"
 
-	sdk "stash.tcsbank.ru/g.kirilenko/invest-openapi-go-sdk"
+	sdk "github.com/TinkoffCreditSystems/invest-openapi-go-sdk"
 )
 
 func main() {
 	const token = "your_token"
 
-	logger := log.New(os.Stdout, "", log.LstdFlags)
+	logger := log.New(os.Stdout, "[invest-openapi-go-sdk]", log.LstdFlags)
 
 	streamClient, err := sdk.NewStreamingClient(logger, token)
 	if err != nil {

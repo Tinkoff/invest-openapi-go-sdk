@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/pkg/errors"
@@ -283,6 +284,74 @@ func (c *RestClient) Orders() ([]Order, error) {
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
 		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	}
+
+	return resp.Payload, nil
+}
+
+func (c *RestClient) Candles(from, to time.Time, interval CandleInterval, figi string) ([]Candle, error) {
+	q := url.Values{
+		"from":     []string{from.Format(time.RFC3339)},
+		"to":       []string{to.Format(time.RFC3339)},
+		"interval": []string{string(interval)},
+		"figi":     []string{figi},
+	}
+	path := c.apiURL + "/market/candles?" + q.Encode()
+
+	req, err := c.newRequest(http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	respBody, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	type response struct {
+		Payload struct {
+			FIGI     string         `json:"figi"`
+			Interval CandleInterval `json:"interval"`
+			Candles  []Candle       `json:"candles"`
+		} `json:"payload"`
+	}
+
+	var resp response
+	if err = json.Unmarshal(respBody, &resp); err != nil {
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	}
+
+	return resp.Payload.Candles, nil
+}
+
+func (c *RestClient) Orderbook(depth int, figi string) (RestOrderBook, error) {
+	if depth < 1 || depth > MaxOrderbookDepth {
+		return RestOrderBook{}, ErrDepth
+	}
+
+	q := url.Values{
+		"depth": []string{strconv.Itoa(depth)},
+		"figi":  []string{figi},
+	}
+	path := c.apiURL + "/market/orderbook?" + q.Encode()
+
+	req, err := c.newRequest(http.MethodGet, path, nil)
+	if err != nil {
+		return RestOrderBook{}, err
+	}
+
+	respBody, err := c.doRequest(req)
+	if err != nil {
+		return RestOrderBook{}, err
+	}
+
+	type response struct {
+		Payload RestOrderBook `json:"payload"`
+	}
+
+	var resp response
+	if err = json.Unmarshal(respBody, &resp); err != nil {
+		return RestOrderBook{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
 	}
 
 	return resp.Payload, nil

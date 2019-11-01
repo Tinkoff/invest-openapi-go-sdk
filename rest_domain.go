@@ -127,3 +127,21 @@ type Trade struct {
 	Price    float64   `json:"price"`
 	Quantity int       `json:"quantity"`
 }
+
+type RestPriceQuantity struct {
+	Price    float64 `json:"price"`
+	Quantity float64 `json:"quantity"`
+}
+
+type RestOrderBook struct {
+	FIGI              string              `json:"figi"`
+	Depth             int                 `json:"depth"`
+	Bids              []RestPriceQuantity `json:"bids"`
+	Asks              []RestPriceQuantity `json:"asks"`
+	TradeStatus       TradingStatus       `json:"tradeStatus"`
+	MinPriceIncrement float64             `json:"minPriceIncrement"`
+	LastPrice         float64             `json:"lastPrice,omitempty"`
+	ClosePrice        float64             `json:"closePrice,omitempty"`
+	LimitUp           float64             `json:"limitUp,omitempty"`
+	LimitDown         float64             `json:"limitDown,omitempty"`
+}

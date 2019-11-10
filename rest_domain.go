@@ -17,15 +17,6 @@ const (
 	SELL OperationType = "Sell"
 )
 
-type OperationInterval string
-
-const (
-	OperationInterval1Day   OperationInterval = "1day"
-	OperationInterval7Days  OperationInterval = "7days"
-	OperationInterval14Days OperationInterval = "14days"
-	OperationInterval30Days OperationInterval = "30days"
-)
-
 type OrderStatus string
 
 const (

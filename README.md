@@ -25,8 +25,10 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"time"
 
 	sdk "github.com/TinkoffCreditSystems/invest-openapi-go-sdk"
 )
@@ -42,6 +44,11 @@ func main() {
 	}
 
 	restClient := sdk.NewRestClient(token)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+	defer cancel()
+
+	currencies, err := restClient.Currencies(ctx)
 }
 ```
 
@@ -51,4 +58,3 @@ func main() {
 Если возникают вопросы по данному SDK, нашёлся баг или есть предложения по улучшению, то можно задать его в Issues, либо писать на почту:
 * Мельникову Никите ( [n.v.melnikov@tinkoff.ru](mailto:n.v.melnikov@tinkoff.ru) )
 * Кириленко Георгию ( [g.kirilenko@tinkoff.ru](mailto:g.kirilenko@tinkoff.ru) )
-

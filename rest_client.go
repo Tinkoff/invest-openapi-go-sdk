@@ -2,6 +2,7 @@ package sdk
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -31,17 +32,17 @@ func NewRestClient(token string) *RestClient {
 func NewRestClientCustom(token, apiURL string) *RestClient {
 	return &RestClient{
 		httpClient: &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout: 30 * time.Second,
 		},
 		token:  token,
 		apiURL: apiURL,
 	}
 }
 
-func (c *RestClient) SearchInstrumentByFIGI(figi string) (Instrument, error) {
+func (c *RestClient) SearchInstrumentByFIGI(ctx context.Context, figi string) (Instrument, error) {
 	path := c.apiURL + "/market/search/by-figi?figi=" + figi
 
-	req, err := c.newRequest(http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return Instrument{}, err
 	}
@@ -63,38 +64,38 @@ func (c *RestClient) SearchInstrumentByFIGI(figi string) (Instrument, error) {
 	return resp.Payload, nil
 }
 
-func (c *RestClient) SearchInstrumentByTicker(ticker string) ([]Instrument, error) {
+func (c *RestClient) SearchInstrumentByTicker(ctx context.Context, ticker string) ([]Instrument, error) {
 	path := c.apiURL + "/market/search/by-ticker?ticker=" + ticker
 
-	return c.instruments(path)
+	return c.instruments(ctx, path)
 }
 
-func (c *RestClient) Currencies() ([]Instrument, error) {
+func (c *RestClient) Currencies(ctx context.Context) ([]Instrument, error) {
 	path := c.apiURL + "/market/currencies"
 
-	return c.instruments(path)
+	return c.instruments(ctx, path)
 }
 
-func (c *RestClient) ETFs() ([]Instrument, error) {
+func (c *RestClient) ETFs(ctx context.Context) ([]Instrument, error) {
 	path := c.apiURL + "/market/etfs"
 
-	return c.instruments(path)
+	return c.instruments(ctx, path)
 }
 
-func (c *RestClient) Bonds() ([]Instrument, error) {
+func (c *RestClient) Bonds(ctx context.Context) ([]Instrument, error) {
 	path := c.apiURL + "/market/bonds"
 
-	return c.instruments(path)
+	return c.instruments(ctx, path)
 }
 
-func (c *RestClient) Stocks() ([]Instrument, error) {
+func (c *RestClient) Stocks(ctx context.Context) ([]Instrument, error) {
 	path := c.apiURL + "/market/stocks"
 
-	return c.instruments(path)
+	return c.instruments(ctx, path)
 }
 
-func (c *RestClient) instruments(path string) ([]Instrument, error) {
-	req, err := c.newRequest(http.MethodGet, path, nil)
+func (c *RestClient) instruments(ctx context.Context, path string) ([]Instrument, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +119,7 @@ func (c *RestClient) instruments(path string) ([]Instrument, error) {
 	return resp.Payload.Instruments, nil
 }
 
-func (c *RestClient) Operations(from, to time.Time, figi string) ([]Operation, error) {
+func (c *RestClient) Operations(ctx context.Context, from, to time.Time, figi string) ([]Operation, error) {
 	q := url.Values{
 		"from": []string{from.Format(time.RFC3339)},
 		"to":   []string{to.Format(time.RFC3339)},
@@ -129,7 +130,7 @@ func (c *RestClient) Operations(from, to time.Time, figi string) ([]Operation, e
 
 	path := c.apiURL + "/operations?" + q.Encode()
 
-	req, err := c.newRequest(http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -153,13 +154,13 @@ func (c *RestClient) Operations(from, to time.Time, figi string) ([]Operation, e
 	return resp.Payload.Operations, nil
 }
 
-func (c *RestClient) Portfolio() (Portfolio, error) {
-	positions, err := c.PositionsPortfolio()
+func (c *RestClient) Portfolio(ctx context.Context) (Portfolio, error) {
+	positions, err := c.PositionsPortfolio(ctx)
 	if err != nil {
 		return Portfolio{}, err
 	}
 
-	currencies, err := c.CurrenciesPortfolio()
+	currencies, err := c.CurrenciesPortfolio(ctx)
 	if err != nil {
 		return Portfolio{}, err
 	}
@@ -170,10 +171,10 @@ func (c *RestClient) Portfolio() (Portfolio, error) {
 	}, nil
 }
 
-func (c *RestClient) PositionsPortfolio() ([]PositionBalance, error) {
+func (c *RestClient) PositionsPortfolio(ctx context.Context) ([]PositionBalance, error) {
 	path := c.apiURL + "/portfolio"
 
-	req, err := c.newRequest(http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -197,10 +198,10 @@ func (c *RestClient) PositionsPortfolio() ([]PositionBalance, error) {
 	return resp.Payload.Positions, nil
 }
 
-func (c *RestClient) CurrenciesPortfolio() ([]CurrencyBalance, error) {
+func (c *RestClient) CurrenciesPortfolio(ctx context.Context) ([]CurrencyBalance, error) {
 	path := c.apiURL + "/portfolio/currencies"
 
-	req, err := c.newRequest(http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -224,13 +225,13 @@ func (c *RestClient) CurrenciesPortfolio() ([]CurrencyBalance, error) {
 	return resp.Payload.Currencies, nil
 }
 
-func (c *RestClient) OrderCancel(id string) error {
+func (c *RestClient) OrderCancel(ctx context.Context, id string) error {
 	path := c.apiURL + "/orders/cancel?orderId=" + id
 
-	return c.postJSONThrow(path, nil)
+	return c.postJSONThrow(ctx, path, nil)
 }
 
-func (c *RestClient) LimitOrder(figi string, lots int, operation OperationType, price float64) (PlacedLimitOrder, error) {
+func (c *RestClient) LimitOrder(ctx context.Context, figi string, lots int, operation OperationType, price float64) (PlacedLimitOrder, error) {
 	path := c.apiURL + "/orders/limit-order?figi=" + figi
 
 	payload := struct {
@@ -244,7 +245,7 @@ func (c *RestClient) LimitOrder(figi string, lots int, operation OperationType, 
 		return PlacedLimitOrder{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
 	}
 
-	req, err := c.newRequest(http.MethodPost, path, bytes.NewReader(bb))
+	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
 	if err != nil {
 		return PlacedLimitOrder{}, err
 	}
@@ -266,10 +267,10 @@ func (c *RestClient) LimitOrder(figi string, lots int, operation OperationType, 
 	return resp.Payload, nil
 }
 
-func (c *RestClient) Orders() ([]Order, error) {
+func (c *RestClient) Orders(ctx context.Context) ([]Order, error) {
 	path := c.apiURL + "/orders"
 
-	req, err := c.newRequest(http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +292,7 @@ func (c *RestClient) Orders() ([]Order, error) {
 	return resp.Payload, nil
 }
 
-func (c *RestClient) Candles(from, to time.Time, interval CandleInterval, figi string) ([]Candle, error) {
+func (c *RestClient) Candles(ctx context.Context, from, to time.Time, interval CandleInterval, figi string) ([]Candle, error) {
 	q := url.Values{
 		"from":     []string{from.Format(time.RFC3339)},
 		"to":       []string{to.Format(time.RFC3339)},
@@ -300,7 +301,7 @@ func (c *RestClient) Candles(from, to time.Time, interval CandleInterval, figi s
 	}
 	path := c.apiURL + "/market/candles?" + q.Encode()
 
-	req, err := c.newRequest(http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +327,7 @@ func (c *RestClient) Candles(from, to time.Time, interval CandleInterval, figi s
 	return resp.Payload.Candles, nil
 }
 
-func (c *RestClient) Orderbook(depth int, figi string) (RestOrderBook, error) {
+func (c *RestClient) Orderbook(ctx context.Context, depth int, figi string) (RestOrderBook, error) {
 	if depth < 1 || depth > MaxOrderbookDepth {
 		return RestOrderBook{}, ErrDepth
 	}
@@ -337,7 +338,7 @@ func (c *RestClient) Orderbook(depth int, figi string) (RestOrderBook, error) {
 	}
 	path := c.apiURL + "/market/orderbook?" + q.Encode()
 
-	req, err := c.newRequest(http.MethodGet, path, nil)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return RestOrderBook{}, err
 	}
@@ -359,7 +360,7 @@ func (c *RestClient) Orderbook(depth int, figi string) (RestOrderBook, error) {
 	return resp.Payload, nil
 }
 
-func (c *RestClient) postJSONThrow(url string, body interface{}) error {
+func (c *RestClient) postJSONThrow(ctx context.Context, url string, body interface{}) error {
 	var bb []byte
 	var err error
 
@@ -370,7 +371,7 @@ func (c *RestClient) postJSONThrow(url string, body interface{}) error {
 		}
 	}
 
-	req, err := c.newRequest(http.MethodPost, url, bytes.NewReader(bb))
+	req, err := c.newRequest(ctx, http.MethodPost, url, bytes.NewReader(bb))
 	if err != nil {
 		return err
 	}
@@ -379,7 +380,7 @@ func (c *RestClient) postJSONThrow(url string, body interface{}) error {
 	return err
 }
 
-func (c *RestClient) newRequest(method, url string, body io.Reader) (*http.Request, error) {
+func (c *RestClient) newRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, errors.Errorf("can't create http request to %s", url)
@@ -388,7 +389,7 @@ func (c *RestClient) newRequest(method, url string, body io.Reader) (*http.Reque
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c.token)
 
-	return req, nil
+	return req.WithContext(ctx), nil
 }
 
 func (c *RestClient) doRequest(req *http.Request) ([]byte, error) {

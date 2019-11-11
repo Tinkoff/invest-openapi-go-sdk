@@ -1,4 +1,5 @@
 module github.com/TinkoffCreditSystems/invest-openapi-go-sdk
+
 go 1.12
 
 require (

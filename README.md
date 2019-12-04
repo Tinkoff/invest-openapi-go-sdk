@@ -21,36 +21,7 @@
 
 Для непосредственного взаимодействия с OpenAPI нужно создать клиента. Клиенты разделены на streaming и rest.
 
-```go
-package main
-
-import (
-	"context"
-	"log"
-	"os"
-	"time"
-
-	sdk "github.com/TinkoffCreditSystems/invest-openapi-go-sdk"
-)
-
-func main() {
-	const token = "your_token"
-
-	logger := log.New(os.Stdout, "[invest-openapi-go-sdk]", log.LstdFlags)
-
-	streamClient, err := sdk.NewStreamingClient(logger, token)
-	if err != nil {
-		logger.Fatalln(err)
-	}
-
-	restClient := sdk.NewRestClient(token)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
-	defer cancel()
-
-	currencies, err := restClient.Currencies(ctx)
-}
-```
+Примеры использования SDK находятся в директории examples
 
 ### У меня есть вопрос
 

@@ -13,3 +13,6 @@
 
 # Dependency directories
 vendor/
+
+.idea/
+invest-openapi-go-sdk.iml

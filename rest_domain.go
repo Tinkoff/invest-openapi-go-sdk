@@ -55,7 +55,7 @@ type Order struct {
 	Operation     string  `json:"operation"`
 	Status        string  `json:"status"`
 	RequestedLots int     `json:"requestedLots"`
-	ExecutedLots  int     `json:"requestedLots"`
+	ExecutedLots  int     `json:"executedLots"`
 	Type          string  `json:"type"`
 	Price         float64 `json:"price"`
 }

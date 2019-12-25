@@ -72,14 +72,16 @@ type CurrencyBalance struct {
 }
 
 type PositionBalance struct {
-	FIGI           string      `json:"figi"`
-	Ticker         string      `json:"ticker"`
-	ISIN           string      `json:"isin"`
-	InstrumentType string      `json:"instrumentType"`
-	Balance        float64     `json:"balance"`
-	Blocked        float64     `json:"blocked"`
-	Lots           int         `json:"lots"`
-	ExpectedYield  MoneyAmount `json:"expectedYield"`
+	FIGI                      string      `json:"figi"`
+	Ticker                    string      `json:"ticker"`
+	ISIN                      string      `json:"isin"`
+	InstrumentType            string      `json:"instrumentType"`
+	Balance                   float64     `json:"balance"`
+	Blocked                   float64     `json:"blocked"`
+	Lots                      int         `json:"lots"`
+	ExpectedYield             MoneyAmount `json:"expectedYield"`
+	AveragePositionPrice      MoneyAmount `json:"averagePositionPrice"`
+	AveragePositionPriceNoNkd MoneyAmount `json:"averagePositionPriceNoNkd"`
 }
 
 type MoneyAmount struct {

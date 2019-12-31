@@ -13,8 +13,26 @@ const (
 type OperationType string
 
 const (
-	BUY  OperationType = "Buy"
-	SELL OperationType = "Sell"
+	BUY                             OperationType = "Buy"
+	SELL                            OperationType = "Sell"
+	OperationTypeBrokerCommission   OperationType = "BrokerCommission"
+	OperationTypeExchangeCommission OperationType = "ExchangeCommission"
+	OperationTypeServiceCommission  OperationType = "ServiceCommission"
+	OperationTypeMarginCommission   OperationType = "MarginCommission"
+	OperationTypeOtherCommission    OperationType = "OtherCommission"
+	OperationTypePayIn              OperationType = "PayIn"
+	OperationTypePayOut             OperationType = "PayOut"
+	OperationTypeTax                OperationType = "Tax"
+	OperationTypeTaxLucre           OperationType = "TaxLucre"
+	OperationTypeTaxDividend        OperationType = "TaxDividend"
+	OperationTypeTaxCoupon          OperationType = "TaxCoupon"
+	OperationTypeTaxBack            OperationType = "TaxBack"
+	OperationTypeRepayment          OperationType = "Repayment"
+	OperationTypePartRepayment      OperationType = "PartRepayment"
+	OperationTypeCoupon             OperationType = "Coupon"
+	OperationTypeDividend           OperationType = "Dividend"
+	OperationTypeSecurityIn         OperationType = "SecurityIn"
+	OperationTypeSecurityOut        OperationType = "SecurityOut"
 )
 
 type OrderStatus string
@@ -34,30 +52,46 @@ const (
 type OperationStatus string
 
 const (
-	OperationStatusDone     OrderStatus = "Done"
-	OperationStatusDecline  OrderStatus = "Decline"
-	OperationStatusProgress OrderStatus = "Progress"
+	OperationStatusDone     OperationStatus = "Done"
+	OperationStatusDecline  OperationStatus = "Decline"
+	OperationStatusProgress OperationStatus = "Progress"
+)
+
+type InstrumentType string
+
+const (
+	InstrumentTypeStock    InstrumentType = "Stock"
+	InstrumentTypeCurrency InstrumentType = "Currency"
+	InstrumentTypeBond     InstrumentType = "Bond"
+	InstrumentTypeEtf      InstrumentType = "Etf"
+)
+
+type OrderType string
+
+const (
+	OrderTypeLimit  OrderType = "Limit"
+	OrderTypeMarket OrderType = "Market"
 )
 
 type PlacedLimitOrder struct {
-	ID            string      `json:"orderId"`
-	Operation     string      `json:"operation"`
-	Status        OrderStatus `json:"status"`
-	RejectReason  string      `json:"rejectReason"`
-	RequestedLots int         `json:"requestedLots"`
-	ExecutedLots  int         `json:"executedLots"`
-	Commission    MoneyAmount `json:"commission"`
+	ID            string        `json:"orderId"`
+	Operation     OperationType `json:"operation"`
+	Status        OrderStatus   `json:"status"`
+	RejectReason  string        `json:"rejectReason"`
+	RequestedLots int           `json:"requestedLots"`
+	ExecutedLots  int           `json:"executedLots"`
+	Commission    MoneyAmount   `json:"commission"`
 }
 
 type Order struct {
-	ID            string  `json:"orderId"`
-	FIGI          string  `json:"figi"`
-	Operation     string  `json:"operation"`
-	Status        string  `json:"status"`
-	RequestedLots int     `json:"requestedLots"`
-	ExecutedLots  int     `json:"executedLots"`
-	Type          string  `json:"type"`
-	Price         float64 `json:"price"`
+	ID            string        `json:"orderId"`
+	FIGI          string        `json:"figi"`
+	Operation     OperationType `json:"operation"`
+	Status        OrderStatus   `json:"status"`
+	RequestedLots int           `json:"requestedLots"`
+	ExecutedLots  int           `json:"executedLots"`
+	Type          OrderType     `json:"type"`
+	Price         float64       `json:"price"`
 }
 
 type Portfolio struct {
@@ -72,16 +106,16 @@ type CurrencyBalance struct {
 }
 
 type PositionBalance struct {
-	FIGI                      string      `json:"figi"`
-	Ticker                    string      `json:"ticker"`
-	ISIN                      string      `json:"isin"`
-	InstrumentType            string      `json:"instrumentType"`
-	Balance                   float64     `json:"balance"`
-	Blocked                   float64     `json:"blocked"`
-	Lots                      int         `json:"lots"`
-	ExpectedYield             MoneyAmount `json:"expectedYield"`
-	AveragePositionPrice      MoneyAmount `json:"averagePositionPrice"`
-	AveragePositionPriceNoNkd MoneyAmount `json:"averagePositionPriceNoNkd"`
+	FIGI                      string         `json:"figi"`
+	Ticker                    string         `json:"ticker"`
+	ISIN                      string         `json:"isin"`
+	InstrumentType            InstrumentType `json:"instrumentType"`
+	Balance                   float64        `json:"balance"`
+	Blocked                   float64        `json:"blocked"`
+	Lots                      int            `json:"lots"`
+	ExpectedYield             MoneyAmount    `json:"expectedYield"`
+	AveragePositionPrice      MoneyAmount    `json:"averagePositionPrice"`
+	AveragePositionPriceNoNkd MoneyAmount    `json:"averagePositionPriceNoNkd"`
 }
 
 type MoneyAmount struct {
@@ -109,7 +143,7 @@ type Operation struct {
 	Price          float64         `json:"price"`
 	Quantity       int             `json:"quantity"`
 	FIGI           string          `json:"figi"`
-	InstrumentType string          `json:"instrumentType"`
+	InstrumentType InstrumentType  `json:"instrumentType"`
 	IsMarginCall   bool            `json:"isMarginCall"`
 	DateTime       time.Time       `json:"date"`
 	OperationType  OperationType   `json:"operationType"`

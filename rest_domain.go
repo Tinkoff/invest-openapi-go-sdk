@@ -33,6 +33,7 @@ const (
 	OperationTypeDividend           OperationType = "Dividend"
 	OperationTypeSecurityIn         OperationType = "SecurityIn"
 	OperationTypeSecurityOut        OperationType = "SecurityOut"
+	OperationTypeBuyCard            OperationType = "BuyCard"
 )
 
 type OrderStatus string

@@ -39,35 +39,56 @@ func NewRestClientCustom(token, apiURL string) *RestClient {
 	}
 }
 
-func (c *RestClient) SearchInstrumentByFIGI(ctx context.Context, figi string) (Instrument, error) {
+func (c *RestClient) SearchInstrumentByFIGI(ctx context.Context, figi string) (SearchInstrument, error) {
 	path := c.apiURL + "/market/search/by-figi?figi=" + figi
 
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return Instrument{}, err
+		return SearchInstrument{}, err
 	}
 
 	respBody, err := c.doRequest(req)
 	if err != nil {
-		return Instrument{}, err
+		return SearchInstrument{}, err
 	}
 
 	type response struct {
-		Payload Instrument `json:"payload"`
+		Payload SearchInstrument `json:"payload"`
 	}
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return Instrument{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return SearchInstrument{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
 	}
 
 	return resp.Payload, nil
 }
 
-func (c *RestClient) SearchInstrumentByTicker(ctx context.Context, ticker string) ([]Instrument, error) {
+func (c *RestClient) SearchInstrumentByTicker(ctx context.Context, ticker string) ([]SearchInstrument, error) {
 	path := c.apiURL + "/market/search/by-ticker?ticker=" + ticker
 
-	return c.instruments(ctx, path)
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	respBody, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	type response struct {
+		Payload struct {
+			Instruments []SearchInstrument `json:"instruments"`
+		} `json:"payload"`
+	}
+
+	var resp response
+	if err = json.Unmarshal(respBody, &resp); err != nil {
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	}
+
+	return resp.Payload.Instruments, nil
 }
 
 func (c *RestClient) Currencies(ctx context.Context) ([]Instrument, error) {
@@ -119,13 +140,16 @@ func (c *RestClient) instruments(ctx context.Context, path string) ([]Instrument
 	return resp.Payload.Instruments, nil
 }
 
-func (c *RestClient) Operations(ctx context.Context, from, to time.Time, figi string) ([]Operation, error) {
+func (c *RestClient) Operations(ctx context.Context, accountID string, from, to time.Time, figi string) ([]Operation, error) {
 	q := url.Values{
 		"from": []string{from.Format(time.RFC3339)},
 		"to":   []string{to.Format(time.RFC3339)},
 	}
 	if figi != "" {
 		q.Set("figi", figi)
+	}
+	if accountID != DefaultAccount {
+		q.Set("brokerAccountId", accountID)
 	}
 
 	path := c.apiURL + "/operations?" + q.Encode()
@@ -154,13 +178,13 @@ func (c *RestClient) Operations(ctx context.Context, from, to time.Time, figi st
 	return resp.Payload.Operations, nil
 }
 
-func (c *RestClient) Portfolio(ctx context.Context) (Portfolio, error) {
-	positions, err := c.PositionsPortfolio(ctx)
+func (c *RestClient) Portfolio(ctx context.Context, accountID string) (Portfolio, error) {
+	positions, err := c.PositionsPortfolio(ctx, accountID)
 	if err != nil {
 		return Portfolio{}, err
 	}
 
-	currencies, err := c.CurrenciesPortfolio(ctx)
+	currencies, err := c.CurrenciesPortfolio(ctx, accountID)
 	if err != nil {
 		return Portfolio{}, err
 	}
@@ -171,8 +195,12 @@ func (c *RestClient) Portfolio(ctx context.Context) (Portfolio, error) {
 	}, nil
 }
 
-func (c *RestClient) PositionsPortfolio(ctx context.Context) ([]PositionBalance, error) {
+func (c *RestClient) PositionsPortfolio(ctx context.Context, accountID string) ([]PositionBalance, error) {
 	path := c.apiURL + "/portfolio"
+
+	if accountID != DefaultAccount {
+		path += "?brokerAccountId=" + accountID
+	}
 
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -198,8 +226,12 @@ func (c *RestClient) PositionsPortfolio(ctx context.Context) ([]PositionBalance,
 	return resp.Payload.Positions, nil
 }
 
-func (c *RestClient) CurrenciesPortfolio(ctx context.Context) ([]CurrencyBalance, error) {
+func (c *RestClient) CurrenciesPortfolio(ctx context.Context, accountID string) ([]CurrencyBalance, error) {
 	path := c.apiURL + "/portfolio/currencies"
+
+	if accountID != DefaultAccount {
+		path += "?brokerAccountId=" + accountID
+	}
 
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -225,14 +257,22 @@ func (c *RestClient) CurrenciesPortfolio(ctx context.Context) ([]CurrencyBalance
 	return resp.Payload.Currencies, nil
 }
 
-func (c *RestClient) OrderCancel(ctx context.Context, id string) error {
+func (c *RestClient) OrderCancel(ctx context.Context, accountID, id string) error {
 	path := c.apiURL + "/orders/cancel?orderId=" + id
+
+	if accountID != DefaultAccount {
+		path += "&brokerAccountId=" + accountID
+	}
 
 	return c.postJSONThrow(ctx, path, nil)
 }
 
-func (c *RestClient) LimitOrder(ctx context.Context, figi string, lots int, operation OperationType, price float64) (PlacedLimitOrder, error) {
+func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType, price float64) (PlacedLimitOrder, error) {
 	path := c.apiURL + "/orders/limit-order?figi=" + figi
+
+	if accountID != DefaultAccount {
+		path += "&brokerAccountId=" + accountID
+	}
 
 	payload := struct {
 		Lots      int           `json:"lots"`
@@ -267,8 +307,12 @@ func (c *RestClient) LimitOrder(ctx context.Context, figi string, lots int, oper
 	return resp.Payload, nil
 }
 
-func (c *RestClient) Orders(ctx context.Context) ([]Order, error) {
+func (c *RestClient) Orders(ctx context.Context, accountID string) ([]Order, error) {
 	path := c.apiURL + "/orders"
+
+	if accountID != DefaultAccount {
+		path += "?brokerAccountId=" + accountID
+	}
 
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
@@ -360,6 +404,33 @@ func (c *RestClient) Orderbook(ctx context.Context, depth int, figi string) (Res
 	return resp.Payload, nil
 }
 
+func (c *RestClient) Accounts(ctx context.Context) ([]Account, error) {
+	path := c.apiURL + "/user/accounts"
+
+	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	respBody, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	type response struct {
+		Payload struct {
+			Accounts []Account `json:"accounts"`
+		} `json:"payload"`
+	}
+
+	var resp response
+	if err = json.Unmarshal(respBody, &resp); err != nil {
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	}
+
+	return resp.Payload.Accounts, nil
+}
+
 func (c *RestClient) postJSONThrow(ctx context.Context, url string, body interface{}) error {
 	var bb []byte
 	var err error
@@ -413,7 +484,7 @@ func (c *RestClient) doRequest(req *http.Request) ([]byte, error) {
 		if err := json.Unmarshal(body, &tradingError); err == nil {
 			return nil, tradingError
 		}
-		return nil, errors.Errorf("bad response to %s code=%d, body=%s", req.URL.RawPath, resp.StatusCode, body)
+		return nil, errors.Errorf("bad response to %s code=%d, body=%s", req.URL, resp.StatusCode, body)
 	}
 
 	return body, nil
@@ -422,6 +493,7 @@ func (c *RestClient) doRequest(req *http.Request) ([]byte, error) {
 type TradingError struct {
 	TrackingID string `json:"trackingId"`
 	Status     string `json:"status"`
+	Hint       string
 	Payload    struct {
 		Message string `json:"message"`
 		Code    string `json:"code"`
@@ -430,11 +502,15 @@ type TradingError struct {
 
 func (t TradingError) Error() string {
 	return fmt.Sprintf(
-		"TrackingID: %s, Status: %s, Message: %s, Code: %s",
-		t.TrackingID, t.Status, t.Payload.Message, t.Payload.Code,
+		"TrackingID: %s, Status: %s, Message: %s, Code: %s, Hint: %s",
+		t.TrackingID, t.Status, t.Payload.Message, t.Payload.Code, t.Hint,
 	)
 }
 
 func (t TradingError) NotEnoughBalance() bool {
 	return t.Payload.Code == "NOT_ENOUGH_BALANCE"
+}
+
+func (t TradingError) InvalidTokenSpace() bool {
+	return t.Payload.Message == "Invalid token scopes"
 }

@@ -82,6 +82,7 @@ type PlacedLimitOrder struct {
 	RequestedLots int           `json:"requestedLots"`
 	ExecutedLots  int           `json:"executedLots"`
 	Commission    MoneyAmount   `json:"commission"`
+	Message       string        `json:"message,omitempty"`
 }
 
 type Order struct {
@@ -117,6 +118,7 @@ type PositionBalance struct {
 	ExpectedYield             MoneyAmount    `json:"expectedYield"`
 	AveragePositionPrice      MoneyAmount    `json:"averagePositionPrice"`
 	AveragePositionPriceNoNkd MoneyAmount    `json:"averagePositionPriceNoNkd"`
+	Name                      string         `json:"name"`
 }
 
 type MoneyAmount struct {
@@ -132,6 +134,17 @@ type Instrument struct {
 	MinPriceIncrement float64  `json:"minPriceIncrement"`
 	Lot               int      `json:"lot"`
 	Currency          Currency `json:"currency"`
+}
+
+type SearchInstrument struct {
+	FIGI              string         `json:"figi"`
+	Ticker            string         `json:"ticker"`
+	ISIN              string         `json:"isin"`
+	Name              string         `json:"name"`
+	MinPriceIncrement float64        `json:"minPriceIncrement"`
+	Lot               int            `json:"lot"`
+	Currency          Currency       `json:"currency"`
+	Type              InstrumentType `json:"type"`
 }
 
 type Operation struct {
@@ -173,4 +186,19 @@ type RestOrderBook struct {
 	ClosePrice        float64             `json:"closePrice,omitempty"`
 	LimitUp           float64             `json:"limitUp,omitempty"`
 	LimitDown         float64             `json:"limitDown,omitempty"`
+	FaceValue         float64             `json:"faceValue,omitempty"`
 }
+
+type AccountType string
+
+const (
+	AccountTinkoff    AccountType = "Tinkoff"
+	AccountTinkoffIIS AccountType = "TinkoffIis"
+)
+
+type Account struct {
+	Type AccountType `json:"brokerAccountType"`
+	ID   string      `json:"brokerAccountId"`
+}
+
+const DefaultAccount = "" // Номер счета (по умолчанию - Тинькофф)

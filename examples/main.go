@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"math/rand"
 	"os"
@@ -10,22 +11,26 @@ import (
 	sdk "github.com/TinkoffCreditSystems/invest-openapi-go-sdk"
 )
 
-const token = "YOUR_TOKEN"
-
-func init() {
-	rand.Seed(time.Now().UnixNano()) // инициируем Seed рандома для функции requestID
-}
+var token = flag.String("token", "", "your token")
+var isSandbox = flag.Bool("is_sandbox", true, "is sandbox env")
 
 func main() {
-	rest()
-	sandboxRest()
+	rand.Seed(time.Now().UnixNano()) // инициируем Seed рандома для функции requestID
+	flag.Parse()
+
+	if *isSandbox {
+		sandboxRest()
+	} else {
+		rest()
+	}
+
 	stream()
 }
 
 func stream() {
 	logger := log.New(os.Stdout, "[invest-openapi-go-sdk]", log.LstdFlags)
 
-	client, err := sdk.NewStreamingClient(logger, token)
+	client, err := sdk.NewStreamingClient(logger, *token)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -44,41 +49,41 @@ func stream() {
 		}
 	}()
 
-	// Подписка на получение событий по инструменту BBG005DXJS36 (TCS)
+	log.Println("Подписка на получение событий по инструменту BBG005DXJS36 (TCS)")
 	err = client.SubscribeInstrumentInfo("BBG005DXJS36", requestID())
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	// Подписка на получение свечей по инструменту BBG005DXJS36 (TCS)
+	log.Println("Подписка на получение свечей по инструменту BBG005DXJS36 (TCS)")
 	err = client.SubscribeCandle("BBG005DXJS36", sdk.CandleInterval5Min, requestID())
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	// Подписка на получения стакана по инструменту BBG005DXJS36 (TCS)
+	log.Println("Подписка на получения стакана по инструменту BBG005DXJS36 (TCS)")
 	err = client.SubscribeOrderbook("BBG005DXJS36", 10, requestID())
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	// Приложение завершится через 10секунд.
-	// Tip: В боевом приложении лучше обрабатывать сигналы завершения и работать в бесконечном цикле
+	// Hint: В боевом приложении лучше обрабатывать сигналы завершения и работать в бесконечном цикле
 	time.Sleep(10 * time.Second)
 
-	// Отписка от получения событий по инструменту BBG005DXJS36 (TCS)
+	log.Println("Отписка от получения событий по инструменту BBG005DXJS36 (TCS)")
 	err = client.UnsubscribeInstrumentInfo("BBG005DXJS36", requestID())
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	// Отписка от получения событий по инструменту BBG005DXJS36 (TCS)
+	log.Println("Отписка от получения свечей по инструменту BBG005DXJS36 (TCS)")
 	err = client.UnsubscribeCandle("BBG005DXJS36", sdk.CandleInterval5Min, requestID())
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	// Отписка от получения стакана по инструменту BBG005DXJS36 (TCS)
+	log.Println("Отписка от получения стакана по инструменту BBG005DXJS36 (TCS)")
 	err = client.UnsubscribeOrderbook("BBG005DXJS36", 10, requestID())
 	if err != nil {
 		log.Fatalln(err)
@@ -91,13 +96,23 @@ func sandboxRest() {
 	// SetPositionsBalance (НЕ валютные активы)
 	// Обнулить портфель можно методом Clear
 	// Все остальные методы rest клиента так же доступны в песочнице
-	client := sdk.NewSandboxRestClient(token)
+	client := sdk.NewSandboxRestClient(*token)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Регистрация в песочнице
-	err := client.Register(ctx)
+	log.Println("Регистрация обычного счета в песочнице")
+	account, err := client.Register(ctx, sdk.AccountTinkoff)
+	if err != nil {
+		log.Fatalln(errorHandle(err))
+	}
+	log.Printf("%+v\n", account)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	log.Println("Рисуем себе 100500 рублей в портфеле песочницы")
+	err = client.SetCurrencyBalance(ctx, account.ID, sdk.RUB, 100500)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -105,8 +120,29 @@ func sandboxRest() {
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Рисуем себе 100500 рублей в портфеле песочницы
-	err = client.SetCurrencyBalance(ctx, sdk.RUB, 100500)
+	log.Println("Получение списка валютных и НЕ валютных активов портфеля для счета по-умолчанию")
+	// Метод является совмещеним PositionsPortfolio и CurrenciesPortfolio
+	portfolio, err := client.Portfolio(ctx, sdk.DefaultAccount)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Printf("%+v\n", portfolio)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	log.Println("Получение всех брокерских счетов")
+	accounts, err := client.Accounts(ctx)
+	if err != nil {
+		log.Fatalln(errorHandle(err))
+	}
+	log.Printf("%+v\n", accounts)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	log.Println("Рисуем себе 100 акций TCS в портфеле песочницы")
+	err = client.SetPositionsBalance(ctx, account.ID, "BBG005DXJS36", 100)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -114,8 +150,8 @@ func sandboxRest() {
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Рисуем себе 100 акций TCS в портфеле песочницы
-	err = client.SetPositionsBalance(ctx, "BBG005DXJS36", 100)
+	log.Println("Очищаем состояние портфеля в песочнице")
+	err = client.Clear(ctx, account.ID)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -123,63 +159,74 @@ func sandboxRest() {
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Очищаем состояние портфеля в песочнице
-	err = client.Clear(ctx)
+	log.Println("Удаляем счет в песочнице")
+	err = client.Remove(ctx, account.ID)
 	if err != nil {
 		log.Fatalln(err)
 	}
 }
 
 func rest() {
-	client := sdk.NewRestClient(token)
+	client := sdk.NewRestClient(*token)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Получение валютных инструментов
+	log.Println("Получение всех брокерских счетов")
+	accounts, err := client.Accounts(ctx)
+	if err != nil {
+		log.Fatalln(errorHandle(err))
+	}
+	log.Printf("%+v\n", accounts)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	log.Println("Получение валютных инструментов")
 	// Например: USD000UTSTOM - USD, EUR_RUB__TOM - EUR
 	currencies, err := client.Currencies(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(currencies)
+	log.Printf("%+v\n", currencies)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Получение фондовых инструментов
+	log.Println("Получение фондовых инструментов")
 	// Например: FXMM - Казначейские облигации США, FXGD - золото
 	etfs, err := client.ETFs(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(etfs)
+	log.Printf("%+v\n", etfs)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Получение облигационных инструментов
+	log.Println("Получение облигационных инструментов")
 	// Например: SU24019RMFS0 - ОФЗ 24019
 	bonds, err := client.Bonds(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(bonds)
+	log.Printf("%+v\n", bonds)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Получение акционных инструментов
+	log.Println("Получение акционных инструментов")
 	// Например: SBUX - Starbucks Corporation
 	stocks, err := client.Stocks(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(stocks)
+	log.Printf("%+v\n", stocks)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Println("Получение инструменов по тикеру TCS")
 	// Получение инструмента по тикеру, возвращает массив инструментов потому что тикер уникален только в рамках одной биржи
 	// но может совпадать на разных биржах у разных кампаний
 	// Например: https://www.moex.com/ru/issue.aspx?code=FIVE и https://www.nasdaq.com/market-activity/stocks/FIVE
@@ -188,11 +235,12 @@ func rest() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(instruments)
+	log.Printf("%+v\n", instruments)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Println("Получение инструмента по FIGI BBG005DXJS36 (TCS)")
 	// Получение инструмента по FIGI(https://en.wikipedia.org/wiki/Financial_Instrument_Global_Identifier)
 	// Узнать FIGI нужного инструмента можно методами указанными выше
 	// Например: BBG000B9XRY4 - Apple, BBG005DXJS36 - Tinkoff
@@ -200,62 +248,65 @@ func rest() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(instrument)
+	log.Printf("%+v\n", instrument)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Println("Получение списка операций для счета по-умолчанию за последнюю неделю по инструменту(FIGI) BBG000BJSBJ0")
 	// Получение списка операций за период по конкретному инструменту(FIGI)
 	// Например: ниже запрашиваются операции за последнюю неделю по инструменту NEE
-	operations, err := client.Operations(ctx, time.Now().AddDate(0, 0, -7), time.Now(), "BBG000BJSBJ0")
+	operations, err := client.Operations(ctx, sdk.DefaultAccount, time.Now().AddDate(0, 0, -7), time.Now(), "BBG000BJSBJ0")
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(operations)
+	log.Printf("%+v\n", operations)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Получение списка НЕ валютных активов портфеля
-	positions, err := client.PositionsPortfolio(ctx)
+	log.Println("Получение списка НЕ валютных активов портфеля для счета по-умолчанию")
+	positions, err := client.PositionsPortfolio(ctx, sdk.DefaultAccount)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(positions)
+	log.Printf("%+v\n", positions)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Получение списка валютных активов портфеля
-	positionCurrencies, err := client.CurrenciesPortfolio(ctx)
+	log.Println("Получение списка валютных активов портфеля для счета по-умолчанию")
+	positionCurrencies, err := client.CurrenciesPortfolio(ctx, sdk.DefaultAccount)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(positionCurrencies)
+	log.Printf("%+v\n", positionCurrencies)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Получение списка валютных и НЕ валютных активов портфеля, метод является совмещеним PositionsPortfolio и CurrenciesPortfolio
-	portfolio, err := client.Portfolio(ctx)
+	log.Println("Получение списка валютных и НЕ валютных активов портфеля для счета по-умолчанию")
+	// Метод является совмещеним PositionsPortfolio и CurrenciesPortfolio
+	portfolio, err := client.Portfolio(ctx, sdk.DefaultAccount)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(portfolio)
+	log.Printf("%+v\n", portfolio)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Получение списка выставленных заявок(ордеров)
-	orders, err := client.Orders(ctx)
+	log.Println("Получение списка выставленных заявок(ордеров) для счета по-умолчанию")
+	orders, err := client.Orders(ctx, sdk.DefaultAccount)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(orders)
+	log.Printf("%+v\n", orders)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Println("Получение часовых свечей за последние 24 часа по инструменту BBG005DXJS36 (TCS)")
 	// Получение свечей(ордеров)
 	// Внимание! Действуют ограничения на промежуток и доступный размер свечей за него
 	// Интервал свечи и допустимый промежуток запроса:
@@ -275,36 +326,39 @@ func rest() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(candles)
+	log.Printf("%+v\n", candles)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Println("Получение ордербука(он же стакан) глубиной 10 по инструменту BBG005DXJS36")
 	// Получение ордербука(он же стакан) по инструменту
 	orderbook, err := client.Orderbook(ctx, 10, "BBG005DXJS36")
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(orderbook)
+	log.Printf("%+v\n", orderbook)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Выставление лимитной заявки
+	log.Println("Выставление лимитной заявки для счета по-умолчанию на покупку ОДНОЙ акции BBG005DXJS36 (TCS) по цене не выше 20$")
+	// Выставление лимитной заявки для счета по-умолчанию
 	// В примере ниже выставляется заявка на покупку ОДНОЙ акции BBG005DXJS36 (TCS) по цене не выше 20$
-	placedOrder, err := client.LimitOrder(ctx, "BBG005DXJS36", 1, sdk.BUY, 20)
+	placedOrder, err := client.LimitOrder(ctx, sdk.DefaultAccount, "BBG005DXJS36", 1, sdk.BUY, 20)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println(placedOrder)
+	log.Printf("%+v\n", placedOrder)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Отмена ранее выставленной заявки.
+	log.Printf("Отмена ранее выставленной заявки для счета по-умолчанию. %+v\n", placedOrder)
+	// Отмена ранее выставленной заявки для счета по-умолчанию.
 	// ID заявки возвращается в структуре PlacedLimitOrder в поле ID в запросе выставления заявки client.LimitOrder
 	// или в структуре Order в поле ID в запросе получения заявок client.Orders
-	err = client.OrderCancel(ctx, "88320371430")
+	err = client.OrderCancel(ctx, sdk.DefaultAccount, placedOrder.ID)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -320,4 +374,19 @@ func requestID() string {
 	}
 
 	return string(b)
+}
+
+func errorHandle(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if tradingErr, ok := err.(sdk.TradingError); ok {
+		if tradingErr.InvalidTokenSpace() {
+			tradingErr.Hint = "Do you use sandbox token in production environment or vise verse?"
+			return tradingErr
+		}
+	}
+
+	return err
 }

@@ -267,7 +267,7 @@ func (c *RestClient) OrderCancel(ctx context.Context, accountID, id string) erro
 	return c.postJSONThrow(ctx, path, nil)
 }
 
-func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType, price float64) (PlacedLimitOrder, error) {
+func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType, price float64) (PlacedOrder, error) {
 	path := c.apiURL + "/orders/limit-order?figi=" + figi
 
 	if accountID != DefaultAccount {
@@ -282,26 +282,65 @@ func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lot
 
 	bb, err := json.Marshal(payload)
 	if err != nil {
-		return PlacedLimitOrder{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
+		return PlacedOrder{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
 	}
 
 	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
 	if err != nil {
-		return PlacedLimitOrder{}, err
+		return PlacedOrder{}, err
 	}
 
 	respBody, err := c.doRequest(req)
 	if err != nil {
-		return PlacedLimitOrder{}, err
+		return PlacedOrder{}, err
 	}
 
 	type response struct {
-		Payload PlacedLimitOrder `json:"payload"`
+		Payload PlacedOrder `json:"payload"`
 	}
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return PlacedLimitOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return PlacedOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	}
+
+	return resp.Payload, nil
+}
+
+func (c *RestClient) MarketOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType) (PlacedOrder, error) {
+	path := c.apiURL + "/orders/market-order?figi=" + figi
+
+	if accountID != DefaultAccount {
+		path += "&brokerAccountId=" + accountID
+	}
+
+	payload := struct {
+		Lots      int           `json:"lots"`
+		Operation OperationType `json:"operation"`
+	}{Lots: lots, Operation: operation}
+
+	bb, err := json.Marshal(payload)
+	if err != nil {
+		return PlacedOrder{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
+	}
+
+	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
+	if err != nil {
+		return PlacedOrder{}, err
+	}
+
+	respBody, err := c.doRequest(req)
+	if err != nil {
+		return PlacedOrder{}, err
+	}
+
+	type response struct {
+		Payload PlacedOrder `json:"payload"`
+	}
+
+	var resp response
+	if err = json.Unmarshal(respBody, &resp); err != nil {
+		return PlacedOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
 	}
 
 	return resp.Payload, nil

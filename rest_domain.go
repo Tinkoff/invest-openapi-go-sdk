@@ -74,7 +74,7 @@ const (
 	OrderTypeMarket OrderType = "Market"
 )
 
-type PlacedLimitOrder struct {
+type PlacedOrder struct {
 	ID            string        `json:"orderId"`
 	Operation     OperationType `json:"operation"`
 	Status        OrderStatus   `json:"status"`

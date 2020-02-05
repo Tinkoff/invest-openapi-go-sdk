@@ -342,10 +342,10 @@ func rest() {
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	log.Println("Выставление лимитной заявки для счета по-умолчанию на покупку ОДНОЙ акции BBG005DXJS36 (TCS) по цене не выше 20$")
-	// Выставление лимитной заявки для счета по-умолчанию
-	// В примере ниже выставляется заявка на покупку ОДНОЙ акции BBG005DXJS36 (TCS) по цене не выше 20$
-	placedOrder, err := client.LimitOrder(ctx, sdk.DefaultAccount, "BBG005DXJS36", 1, sdk.BUY, 20)
+	log.Println("Выставление рыночной заявки для счета по-умолчанию на покупку ОДНОЙ акции BBG005DXJS36 (TCS)")
+	// Выставление рыночной заявки для счета по-умолчанию
+	// В примере ниже выставляется заявка на покупку ОДНОЙ акции BBG005DXJS36 (TCS)
+	placedOrder, err := client.MarketOrder(ctx, sdk.DefaultAccount, "BBG005DXJS36", 1, sdk.BUY)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -354,10 +354,10 @@ func rest() {
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	log.Println("Выставление рыночной заявки для счета по-умолчанию на покупку ОДНОЙ акции BBG005DXJS36 (TCS)")
-	// Выставление рыночной заявки для счета по-умолчанию
-	// В примере ниже выставляется заявка на покупку ОДНОЙ акции BBG005DXJS36 (TCS)
-	placedOrder, err = client.MarketOrder(ctx, sdk.DefaultAccount, "BBG005DXJS36", 1, sdk.BUY)
+	log.Println("Выставление лимитной заявки для счета по-умолчанию на покупку ОДНОЙ акции BBG005DXJS36 (TCS) по цене не выше 20$")
+	// Выставление лимитной заявки для счета по-умолчанию
+	// В примере ниже выставляется заявка на покупку ОДНОЙ акции BBG005DXJS36 (TCS) по цене не выше 20$
+	placedOrder, err = client.LimitOrder(ctx, sdk.DefaultAccount, "BBG005DXJS36", 1, sdk.BUY, 20)
 	if err != nil {
 		log.Fatalln(err)
 	}

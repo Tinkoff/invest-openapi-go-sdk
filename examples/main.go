@@ -354,6 +354,18 @@ func rest() {
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	log.Println("Выставление рыночной заявки для счета по-умолчанию на покупку ОДНОЙ акции BBG005DXJS36 (TCS)")
+	// Выставление рыночной заявки для счета по-умолчанию
+	// В примере ниже выставляется заявка на покупку ОДНОЙ акции BBG005DXJS36 (TCS)
+	placedOrder, err = client.MarketOrder(ctx, sdk.DefaultAccount, "BBG005DXJS36", 1, sdk.BUY)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	log.Printf("%+v\n", placedOrder)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	log.Printf("Отмена ранее выставленной заявки для счета по-умолчанию. %+v\n", placedOrder)
 	// Отмена ранее выставленной заявки для счета по-умолчанию.
 	// ID заявки возвращается в структуре PlacedLimitOrder в поле ID в запросе выставления заявки client.LimitOrder

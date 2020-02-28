@@ -41,8 +41,13 @@ type Event struct {
 	Name string `json:"event"`
 }
 
+type FullEvent struct {
+	Name string    `json:"event"`
+	Time time.Time `json:"time"`
+}
+
 type CandleEvent struct {
-	Event  string `json:"event"`
+	FullEvent
 	Candle Candle `json:"payload"`
 }
 
@@ -58,7 +63,7 @@ type Candle struct {
 }
 
 type OrderBookEvent struct {
-	Event     string    `json:"event"`
+	FullEvent
 	OrderBook OrderBook `json:"payload"`
 }
 
@@ -72,8 +77,8 @@ type OrderBook struct {
 type PriceQuantity [2]float64 // 0 - price, 1 - quantity
 
 type InstrumentInfoEvent struct {
-	Event string         `json:"event"`
-	Info  InstrumentInfo `json:"payload"`
+	FullEvent
+	Info InstrumentInfo `json:"payload"`
 }
 
 type InstrumentInfo struct {
@@ -87,8 +92,8 @@ type InstrumentInfo struct {
 }
 
 type ErrorEvent struct {
-	Event string `json:"event"`
-	Error Error  `json:"payload"`
+	FullEvent
+	Error Error `json:"payload"`
 }
 
 type Error struct {

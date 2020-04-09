@@ -39,32 +39,32 @@ func NewRestClientCustom(token, apiURL string) *RestClient {
 	}
 }
 
-func (c *RestClient) SearchInstrumentByFIGI(ctx context.Context, figi string) (SearchInstrument, error) {
+func (c *RestClient) InstrumentByFIGI(ctx context.Context, figi string) (Instrument, error) {
 	path := c.apiURL + "/market/search/by-figi?figi=" + figi
 
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return SearchInstrument{}, err
+		return Instrument{}, err
 	}
 
 	respBody, err := c.doRequest(req)
 	if err != nil {
-		return SearchInstrument{}, err
+		return Instrument{}, err
 	}
 
 	type response struct {
-		Payload SearchInstrument `json:"payload"`
+		Payload Instrument `json:"payload"`
 	}
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return SearchInstrument{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return Instrument{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
 	}
 
 	return resp.Payload, nil
 }
 
-func (c *RestClient) SearchInstrumentByTicker(ctx context.Context, ticker string) ([]SearchInstrument, error) {
+func (c *RestClient) InstrumentByTicker(ctx context.Context, ticker string) ([]Instrument, error) {
 	path := c.apiURL + "/market/search/by-ticker?ticker=" + ticker
 
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
@@ -79,7 +79,7 @@ func (c *RestClient) SearchInstrumentByTicker(ctx context.Context, ticker string
 
 	type response struct {
 		Payload struct {
-			Instruments []SearchInstrument `json:"instruments"`
+			Instruments []Instrument `json:"instruments"`
 		} `json:"payload"`
 	}
 

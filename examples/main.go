@@ -231,7 +231,7 @@ func rest() {
 	// но может совпадать на разных биржах у разных кампаний
 	// Например: https://www.moex.com/ru/issue.aspx?code=FIVE и https://www.nasdaq.com/market-activity/stocks/FIVE
 	// В этом примере получить нужную компанию можно проверив поле Currency
-	instruments, err := client.SearchInstrumentByTicker(ctx, "TCS")
+	instruments, err := client.InstrumentByTicker(ctx, "TCS")
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -244,7 +244,7 @@ func rest() {
 	// Получение инструмента по FIGI(https://en.wikipedia.org/wiki/Financial_Instrument_Global_Identifier)
 	// Узнать FIGI нужного инструмента можно методами указанными выше
 	// Например: BBG000B9XRY4 - Apple, BBG005DXJS36 - Tinkoff
-	instrument, err := client.SearchInstrumentByFIGI(ctx, "BBG005DXJS36")
+	instrument, err := client.InstrumentByFIGI(ctx, "BBG005DXJS36")
 	if err != nil {
 		log.Fatalln(err)
 	}

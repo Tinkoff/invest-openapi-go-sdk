@@ -127,16 +127,6 @@ type MoneyAmount struct {
 }
 
 type Instrument struct {
-	FIGI              string   `json:"figi"`
-	Ticker            string   `json:"ticker"`
-	ISIN              string   `json:"isin"`
-	Name              string   `json:"name"`
-	MinPriceIncrement float64  `json:"minPriceIncrement"`
-	Lot               int      `json:"lot"`
-	Currency          Currency `json:"currency"`
-}
-
-type SearchInstrument struct {
 	FIGI              string         `json:"figi"`
 	Ticker            string         `json:"ticker"`
 	ISIN              string         `json:"isin"`

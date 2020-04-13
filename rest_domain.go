@@ -8,6 +8,12 @@ const (
 	RUB Currency = "RUB"
 	USD Currency = "USD"
 	EUR Currency = "EUR"
+	TRY Currency = "TRY"
+	JPY Currency = "JPY"
+	CNY Currency = "CNY"
+	CHF Currency = "CHF"
+	GBP Currency = "GBP"
+	HKD Currency = "HKD"
 )
 
 type OperationType string

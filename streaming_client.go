@@ -169,6 +169,9 @@ func (c *StreamingClient) UnsubscribeInstrumentInfo(figi, requestID string) erro
 	return nil
 }
 
+var ErrForbidden = errors.New("invalid token")
+var ErrUnauthorized = errors.New("token not provided")
+
 func (c *StreamingClient) connect() (*websocket.Conn, error) {
 	dialer := websocket.Dialer{
 		Proxy:            http.ProxyFromEnvironment,
@@ -177,6 +180,16 @@ func (c *StreamingClient) connect() (*websocket.Conn, error) {
 
 	conn, resp, err := dialer.Dial(c.apiURL, http.Header{"Authorization": {"Bearer " + c.token}})
 	if err != nil {
+		if resp != nil {
+			if resp.StatusCode == http.StatusForbidden {
+				return nil, ErrForbidden
+			}
+			if resp.StatusCode == http.StatusUnauthorized {
+				return nil, ErrUnauthorized
+			}
+
+			return nil, errors.Wrapf(err, "can't connect to %s %s", c.apiURL, resp.Status)
+		}
 		return nil, errors.Wrapf(err, "can't connect to %s", c.apiURL)
 	}
 	defer resp.Body.Close()

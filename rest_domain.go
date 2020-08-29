@@ -144,19 +144,20 @@ type Instrument struct {
 }
 
 type Operation struct {
-	ID             string          `json:"id"`
-	Status         OperationStatus `json:"status"`
-	Trades         []Trade         `json:"trades"`
-	Commission     MoneyAmount     `json:"commission"`
-	Currency       Currency        `json:"currency"`
-	Payment        float64         `json:"payment"`
-	Price          float64         `json:"price"`
-	Quantity       int             `json:"quantity"`
-	FIGI           string          `json:"figi"`
-	InstrumentType InstrumentType  `json:"instrumentType"`
-	IsMarginCall   bool            `json:"isMarginCall"`
-	DateTime       time.Time       `json:"date"`
-	OperationType  OperationType   `json:"operationType"`
+	ID               string          `json:"id"`
+	Status           OperationStatus `json:"status"`
+	Trades           []Trade         `json:"trades"`
+	Commission       MoneyAmount     `json:"commission"`
+	Currency         Currency        `json:"currency"`
+	Payment          float64         `json:"payment"`
+	Price            float64         `json:"price"`
+	Quantity         int             `json:"quantity"`
+	QuantityExecuted int             `json:"quantityExecuted"`
+	FIGI             string          `json:"figi"`
+	InstrumentType   InstrumentType  `json:"instrumentType"`
+	IsMarginCall     bool            `json:"isMarginCall"`
+	DateTime         time.Time       `json:"date"`
+	OperationType    OperationType   `json:"operationType"`
 }
 
 type Trade struct {

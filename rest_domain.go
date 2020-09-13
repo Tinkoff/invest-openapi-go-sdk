@@ -4,6 +4,10 @@ import "time"
 
 type Currency string
 
+func (t Currency) String() string {
+    return string(t)
+}
+
 const (
 	RUB Currency = "RUB"
 	USD Currency = "USD"
@@ -17,6 +21,10 @@ const (
 )
 
 type OperationType string
+
+func (t OperationType) String() string {
+    return string(t)
+}
 
 const (
 	BUY                             OperationType = "Buy"
@@ -44,6 +52,10 @@ const (
 
 type OrderStatus string
 
+func (t OrderStatus) String() string {
+    return string(t)
+}
+
 const (
 	OrderStatusNew            OrderStatus = "New"
 	OrderStatusPartiallyFill  OrderStatus = "PartiallyFill"
@@ -58,6 +70,10 @@ const (
 
 type OperationStatus string
 
+func (t OperationStatus) String() string {
+    return string(t)
+}
+
 const (
 	OperationStatusDone     OperationStatus = "Done"
 	OperationStatusDecline  OperationStatus = "Decline"
@@ -65,6 +81,10 @@ const (
 )
 
 type InstrumentType string
+
+func (t InstrumentType) String() string {
+    return string(t)
+}
 
 const (
 	InstrumentTypeStock    InstrumentType = "Stock"
@@ -74,6 +94,10 @@ const (
 )
 
 type OrderType string
+
+func (t OrderType) String() string {
+    return string(t)
+}
 
 const (
 	OrderTypeLimit  OrderType = "Limit"

@@ -6,6 +6,10 @@ const MaxOrderbookDepth = 20
 
 type CandleInterval string
 
+func (t CandleInterval) String() string {
+    return string(t)
+}
+
 const (
 	CandleInterval1Min   CandleInterval = "1min"
 	CandleInterval2Min   CandleInterval = "2min"
@@ -23,6 +27,10 @@ const (
 )
 
 type TradingStatus string
+
+func (t TradingStatus) String() string {
+    return string(t)
+}
 
 const (
 	BreakInTrading               TradingStatus = "break_in_trading"

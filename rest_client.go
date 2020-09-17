@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"time"
 
@@ -29,7 +30,7 @@ func NewRestClient(token string) *RestClient {
 	return NewRestClientCustom(token, RestApiURL)
 }
 
-func NewRestClientCustom(token, apiURL string) *RestClient {
+func NewRestClientCustom(token string, apiURL string) *RestClient {
 	return &RestClient{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
@@ -40,39 +41,32 @@ func NewRestClientCustom(token, apiURL string) *RestClient {
 }
 
 func (c *RestClient) InstrumentByFIGI(ctx context.Context, figi string) (Instrument, error) {
-	path := c.apiURL + "/market/search/by-figi?figi=" + figi
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return Instrument{}, err
-	}
-
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return Instrument{}, err
+	query := url.Values{
+		"figi": []string{figi},
 	}
 
 	type response struct {
 		Payload Instrument `json:"payload"`
 	}
-
 	var resp response
+
+	respBody, err := c.requestApi(ctx, "/market/search/by-figi", query, http.MethodGet, nil)
+	if err != nil {
+		return Instrument{}, err
+	}
+
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return Instrument{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return Instrument{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/market/search/by-figi", respBody)
 	}
 
 	return resp.Payload, nil
 }
 
 func (c *RestClient) InstrumentByTicker(ctx context.Context, ticker string) ([]Instrument, error) {
-	path := c.apiURL + "/market/search/by-ticker?ticker=" + ticker
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
+	query := url.Values{
+		"ticker": []string{ticker},
 	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/market/search/by-ticker", query, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -85,43 +79,38 @@ func (c *RestClient) InstrumentByTicker(ctx context.Context, ticker string) ([]I
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/market/search/by-ticker", respBody)
 	}
 
 	return resp.Payload.Instruments, nil
 }
 
 func (c *RestClient) Currencies(ctx context.Context) ([]Instrument, error) {
-	path := c.apiURL + "/market/currencies"
+	pathString := path.Join(c.apiURL, "/market/currencies")
 
-	return c.instruments(ctx, path)
+	return c.instruments(ctx, pathString)
 }
 
 func (c *RestClient) ETFs(ctx context.Context) ([]Instrument, error) {
-	path := c.apiURL + "/market/etfs"
+	pathString := path.Join(c.apiURL, "/market/etfs")
 
-	return c.instruments(ctx, path)
+	return c.instruments(ctx, pathString)
 }
 
 func (c *RestClient) Bonds(ctx context.Context) ([]Instrument, error) {
-	path := c.apiURL + "/market/bonds"
+	pathString := path.Join(c.apiURL, "/market/bonds")
 
-	return c.instruments(ctx, path)
+	return c.instruments(ctx, pathString)
 }
 
 func (c *RestClient) Stocks(ctx context.Context) ([]Instrument, error) {
-	path := c.apiURL + "/market/stocks"
+	pathString := path.Join(c.apiURL, "/market/stocks")
 
-	return c.instruments(ctx, path)
+	return c.instruments(ctx, pathString)
 }
 
 func (c *RestClient) instruments(ctx context.Context, path string) ([]Instrument, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, path, nil, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -141,25 +130,17 @@ func (c *RestClient) instruments(ctx context.Context, path string) ([]Instrument
 }
 
 func (c *RestClient) Operations(ctx context.Context, accountID string, from, to time.Time, figi string) ([]Operation, error) {
-	q := url.Values{
+	query := url.Values{
 		"from": []string{from.Format(time.RFC3339)},
 		"to":   []string{to.Format(time.RFC3339)},
 	}
 	if figi != "" {
-		q.Set("figi", figi)
+		query.Set("figi", figi)
 	}
 	if accountID != DefaultAccount {
-		q.Set("brokerAccountId", accountID)
+		query.Set("brokerAccountId", accountID)
 	}
-
-	path := c.apiURL + "/operations?" + q.Encode()
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/operations", query, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +153,7 @@ func (c *RestClient) Operations(ctx context.Context, accountID string, from, to 
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/operations", respBody)
 	}
 
 	return resp.Payload.Operations, nil
@@ -196,18 +177,11 @@ func (c *RestClient) Portfolio(ctx context.Context, accountID string) (Portfolio
 }
 
 func (c *RestClient) PositionsPortfolio(ctx context.Context, accountID string) ([]PositionBalance, error) {
-	path := c.apiURL + "/portfolio"
-
+	query := url.Values{}
 	if accountID != DefaultAccount {
-		path += "?brokerAccountId=" + accountID
+		query.Set("brokerAccountId", accountID)
 	}
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/portfolio", query, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -220,25 +194,18 @@ func (c *RestClient) PositionsPortfolio(ctx context.Context, accountID string) (
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/portfolio", respBody)
 	}
 
 	return resp.Payload.Positions, nil
 }
 
 func (c *RestClient) CurrenciesPortfolio(ctx context.Context, accountID string) ([]CurrencyBalance, error) {
-	path := c.apiURL + "/portfolio/currencies"
-
+	query := url.Values{}
 	if accountID != DefaultAccount {
-		path += "?brokerAccountId=" + accountID
+		query.Set("brokerAccountId", accountID)
 	}
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/portfolio/currencies", query, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -251,28 +218,29 @@ func (c *RestClient) CurrenciesPortfolio(ctx context.Context, accountID string) 
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/portfolio/currencies", respBody)
 	}
 
 	return resp.Payload.Currencies, nil
 }
 
 func (c *RestClient) OrderCancel(ctx context.Context, accountID, id string) error {
-	path := c.apiURL + "/orders/cancel?orderId=" + id
-
+	query := url.Values{}
 	if accountID != DefaultAccount {
-		path += "&brokerAccountId=" + accountID
+		query.Set("brokerAccountId", accountID)
 	}
+	query.Set("orderId", id)
+	u := c.getUrlRequest("/orders/cancel", query)
 
-	return c.postJSONThrow(ctx, path, nil)
+	return c.postJSONThrow(ctx, u.String(), nil)
 }
 
 func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType, price float64) (PlacedOrder, error) {
-	path := c.apiURL + "/orders/limit-order?figi=" + figi
-
+	query := url.Values{}
 	if accountID != DefaultAccount {
-		path += "&brokerAccountId=" + accountID
+		query.Set("brokerAccountId", accountID)
 	}
+	query.Set("figi", figi)
 
 	payload := struct {
 		Lots      int           `json:"lots"`
@@ -282,15 +250,10 @@ func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lot
 
 	bb, err := json.Marshal(payload)
 	if err != nil {
-		return PlacedOrder{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
+		return PlacedOrder{}, errors.Errorf("can't marshal request to %s body=%+v", "/orders/limit-order", payload)
 	}
 
-	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
-	if err != nil {
-		return PlacedOrder{}, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/orders/limit-order", query, http.MethodPost, bytes.NewReader(bb))
 	if err != nil {
 		return PlacedOrder{}, err
 	}
@@ -301,19 +264,18 @@ func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lot
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return PlacedOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return PlacedOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/orders/limit-order", respBody)
 	}
 
 	return resp.Payload, nil
 }
 
 func (c *RestClient) MarketOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType) (PlacedOrder, error) {
-	path := c.apiURL + "/orders/market-order?figi=" + figi
-
+	query := url.Values{}
 	if accountID != DefaultAccount {
-		path += "&brokerAccountId=" + accountID
+		query.Set("brokerAccountId", accountID)
 	}
-
+	query.Set("figi", figi)
 	payload := struct {
 		Lots      int           `json:"lots"`
 		Operation OperationType `json:"operation"`
@@ -321,15 +283,10 @@ func (c *RestClient) MarketOrder(ctx context.Context, accountID, figi string, lo
 
 	bb, err := json.Marshal(payload)
 	if err != nil {
-		return PlacedOrder{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
+		return PlacedOrder{}, errors.Errorf("can't marshal request to %s body=%+v", "/orders/market-order", payload)
 	}
 
-	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
-	if err != nil {
-		return PlacedOrder{}, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/orders/market-order", query, http.MethodPost, bytes.NewReader(bb))
 	if err != nil {
 		return PlacedOrder{}, err
 	}
@@ -340,25 +297,18 @@ func (c *RestClient) MarketOrder(ctx context.Context, accountID, figi string, lo
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return PlacedOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return PlacedOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/orders/market-order", respBody)
 	}
 
 	return resp.Payload, nil
 }
 
 func (c *RestClient) Orders(ctx context.Context, accountID string) ([]Order, error) {
-	path := c.apiURL + "/orders"
-
+	query := url.Values{}
 	if accountID != DefaultAccount {
-		path += "?brokerAccountId=" + accountID
+		query.Set("brokerAccountId", accountID)
 	}
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/orders", query, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -369,27 +319,20 @@ func (c *RestClient) Orders(ctx context.Context, accountID string) ([]Order, err
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/orders", respBody)
 	}
 
 	return resp.Payload, nil
 }
 
 func (c *RestClient) Candles(ctx context.Context, from, to time.Time, interval CandleInterval, figi string) ([]Candle, error) {
-	q := url.Values{
+	query := url.Values{
 		"from":     []string{from.Format(time.RFC3339)},
 		"to":       []string{to.Format(time.RFC3339)},
 		"interval": []string{string(interval)},
 		"figi":     []string{figi},
 	}
-	path := c.apiURL + "/market/candles?" + q.Encode()
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/market/candles", query, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +347,7 @@ func (c *RestClient) Candles(ctx context.Context, from, to time.Time, interval C
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/market/candles", respBody)
 	}
 
 	return resp.Payload.Candles, nil
@@ -415,18 +358,12 @@ func (c *RestClient) Orderbook(ctx context.Context, depth int, figi string) (Res
 		return RestOrderBook{}, ErrDepth
 	}
 
-	q := url.Values{
+	query := url.Values{
 		"depth": []string{strconv.Itoa(depth)},
 		"figi":  []string{figi},
 	}
-	path := c.apiURL + "/market/orderbook?" + q.Encode()
 
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return RestOrderBook{}, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/market/orderbook", query, http.MethodGet, nil)
 	if err != nil {
 		return RestOrderBook{}, err
 	}
@@ -437,21 +374,14 @@ func (c *RestClient) Orderbook(ctx context.Context, depth int, figi string) (Res
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return RestOrderBook{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return RestOrderBook{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/market/orderbook", respBody)
 	}
 
 	return resp.Payload, nil
 }
 
 func (c *RestClient) Accounts(ctx context.Context) ([]Account, error) {
-	path := c.apiURL + "/user/accounts"
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
+	respBody, err := c.requestApi(ctx, "/user/accounts", nil, http.MethodGet, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +394,7 @@ func (c *RestClient) Accounts(ctx context.Context) ([]Account, error) {
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", "/user/accounts", respBody)
 	}
 
 	return resp.Payload.Accounts, nil
@@ -527,6 +457,28 @@ func (c *RestClient) doRequest(req *http.Request) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+func (c *RestClient) getUrlRequest(urlPath string, query url.Values) *url.URL {
+	result, _ := url.Parse(c.apiURL)
+	result.Path = path.Join(result.Path, urlPath)
+	result.RawQuery = query.Encode()
+	return result
+}
+
+func (c *RestClient) requestApi(ctx context.Context, urlPath string, query url.Values, method string, body io.Reader) ([]byte, error) {
+	u := c.getUrlRequest(urlPath, query)
+	req, err := c.newRequest(ctx, method, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	respBody, err := c.doRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return respBody, nil
 }
 
 type TradingError struct {

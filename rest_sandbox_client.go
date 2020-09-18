@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"path"
 
 	"github.com/pkg/errors"
 )
@@ -14,7 +16,9 @@ type SandboxRestClient struct {
 }
 
 func NewSandboxRestClient(token string) *SandboxRestClient {
-	return &SandboxRestClient{NewRestClientCustom(token, RestApiURL+"/sandbox")}
+	tmp, _ := url.Parse(RestApiURL)
+	tmp.Path = path.Join(tmp.Path, "/sandbox")
+	return &SandboxRestClient{NewRestClientCustom(token, tmp.String())}
 }
 
 func NewSandboxRestClientCustom(token, apiURL string) *SandboxRestClient {
@@ -22,18 +26,17 @@ func NewSandboxRestClientCustom(token, apiURL string) *SandboxRestClient {
 }
 
 func (c *SandboxRestClient) Register(ctx context.Context, accountType AccountType) (Account, error) {
-	path := c.apiURL + "/sandbox/register"
-
+	u := c.getUrlRequest("/sandbox/register", nil)
 	payload := struct {
 		AccountType AccountType `json:"brokerAccountType"`
 	}{AccountType: accountType}
 
 	bb, err := json.Marshal(payload)
 	if err != nil {
-		return Account{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
+		return Account{}, errors.Errorf("can't marshal request to %s body=%+v", u.String(), payload)
 	}
 
-	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
+	req, err := c.newRequest(ctx, http.MethodPost, u.String(), bytes.NewReader(bb))
 	if err != nil {
 		return Account{}, err
 	}
@@ -49,34 +52,38 @@ func (c *SandboxRestClient) Register(ctx context.Context, accountType AccountTyp
 
 	var resp response
 	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return Account{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+		return Account{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", u.String(), respBody)
 	}
 
 	return resp.Payload, nil
 }
 
 func (c *SandboxRestClient) Clear(ctx context.Context, accountID string) error {
-	path := c.apiURL + "/sandbox/clear"
-
+	query := url.Values{}
 	if accountID != DefaultAccount {
-		path += "?brokerAccountId=" + accountID
+		query.Set("brokerAccountId", accountID)
 	}
+	u := c.getUrlRequest("/sandbox/clear", query)
 
-	return c.postJSONThrow(ctx, path, nil)
+	return c.postJSONThrow(ctx, u.String(), nil)
 }
 
 func (c *SandboxRestClient) Remove(ctx context.Context, accountID string) error {
-	path := c.apiURL + "/sandbox/remove"
-
+	query := url.Values{}
 	if accountID != DefaultAccount {
-		path += "?brokerAccountId=" + accountID
+		query.Set("brokerAccountId", accountID)
 	}
+	u := c.getUrlRequest("/sandbox/remove", query)
 
-	return c.postJSONThrow(ctx, path, nil)
+	return c.postJSONThrow(ctx, u.String(), nil)
 }
 
 func (c *SandboxRestClient) SetCurrencyBalance(ctx context.Context, accountID string, currency Currency, balance float64) error {
-	path := c.apiURL + "/sandbox/currencies/balance"
+	query := url.Values{}
+	if accountID != DefaultAccount {
+		query.Set("brokerAccountId", accountID)
+	}
+	u := c.getUrlRequest("/sandbox/currencies/balance", query)
 
 	payload := struct {
 		Currency  Currency `json:"currency"`
@@ -88,11 +95,15 @@ func (c *SandboxRestClient) SetCurrencyBalance(ctx context.Context, accountID st
 		payload.AccountID = accountID
 	}
 
-	return c.postJSONThrow(ctx, path, payload)
+	return c.postJSONThrow(ctx, u.String(), payload)
 }
 
 func (c *SandboxRestClient) SetPositionsBalance(ctx context.Context, accountID, figi string, balance float64) error {
-	path := c.apiURL + "/sandbox/positions/balance"
+	query := url.Values{}
+	if accountID != DefaultAccount {
+		query.Set("brokerAccountId", accountID)
+	}
+	u := c.getUrlRequest("/sandbox/positions/balance", query)
 
 	payload := struct {
 		FIGI      string  `json:"figi"`
@@ -104,5 +115,5 @@ func (c *SandboxRestClient) SetPositionsBalance(ctx context.Context, accountID, 
 		payload.AccountID = accountID
 	}
 
-	return c.postJSONThrow(ctx, path, payload)
+	return c.postJSONThrow(ctx, u.String(), payload)
 }

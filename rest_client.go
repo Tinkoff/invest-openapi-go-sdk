@@ -1,146 +1,194 @@
 package sdk
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
-const RestApiURL = "https://api-invest.tinkoff.ru/openapi"
+// Errors.
+var (
+	ErrDepth    = fmt.Errorf("invalid depth. Should be in interval 0 < x <= %d", MaxOrderbookDepth)
+	ErrNotFound = errors.New("not found")
+)
 
-var ErrNotFound = errors.New("Not found")
+const (
+	// RestAPIURL contains main api url for tinkoff invest api.
+	RestAPIURL = "https://api-invest.tinkoff.ru/openapi"
+	// MaxTimeout for http request.
+	MaxTimeout = time.Second * 30
+)
 
-type RestClient struct {
-	httpClient *http.Client
-	token      string
-	apiURL     string
+type (
+	// RestClient provide to rest methods from tinkoff invest api.
+	RestClient struct {
+		http  HTTP
+		token string
+		url   string
+	}
+
+	// BuildOption build options for rest client.
+	BuildOption func(*RestClient)
+)
+
+// WithClient build rest client by custom http client.
+func WithClient(http HTTP) BuildOption {
+	return func(client *RestClient) {
+		client.http = http
+	}
 }
 
-func NewRestClient(token string) *RestClient {
-	return NewRestClientCustom(token, RestApiURL)
+// WithURL build rest client by custom api url.
+func WithURL(url string) BuildOption {
+	return func(client *RestClient) {
+		client.url = url
+	}
 }
 
-func NewRestClientCustom(token, apiURL string) *RestClient {
-	return &RestClient{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+// NewRestClient build rest client by option.
+func NewRestClient(token string, options ...BuildOption) *RestClient {
+	client := &RestClient{
+		http: &defaultHTTP{
+			client: &http.Client{
+				Transport: http.DefaultTransport,
+				Timeout:   MaxTimeout,
+			},
 		},
-		token:  token,
-		apiURL: apiURL,
+		token: token,
+		url:   RestAPIURL,
 	}
+
+	for i := range options {
+		options[i](client)
+	}
+
+	return client
 }
 
+// NewRestClientCustom for backward compatibility only.
+// Deprecated: have to use NewRestClient by options.
+func NewRestClientCustom(token, apiURL string) *RestClient {
+	return NewRestClient(token, WithURL(apiURL))
+}
+
+// InstrumentByFIGI see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/market/get_market_search_by_figi.
 func (c *RestClient) InstrumentByFIGI(ctx context.Context, figi string) (Instrument, error) {
-	path := c.apiURL + "/market/search/by-figi?figi=" + figi
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return Instrument{}, err
-	}
-
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return Instrument{}, err
-	}
-
-	type response struct {
+	var response struct {
 		Payload Instrument `json:"payload"`
 	}
 
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return Instrument{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	path := c.url + "/market/search/by-figi?figi=" + figi
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	if err != nil {
+		return Instrument{}, fmt.Errorf("http get: %w", err)
 	}
 
-	return resp.Payload, nil
+	return response.Payload, nil
 }
 
+// InstrumentByTicker see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/market/get_market_search_by_ticker.
 func (c *RestClient) InstrumentByTicker(ctx context.Context, ticker string) ([]Instrument, error) {
-	path := c.apiURL + "/market/search/by-ticker?ticker=" + ticker
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	type response struct {
+	var response struct {
 		Payload struct {
 			Instruments []Instrument `json:"instruments"`
 		} `json:"payload"`
 	}
 
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	path := c.url + "/market/search/by-ticker?ticker=" + ticker
+
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w", err)
 	}
 
-	return resp.Payload.Instruments, nil
+	return response.Payload.Instruments, nil
 }
 
+// Currencies see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/market/get_market_currencies.
 func (c *RestClient) Currencies(ctx context.Context) ([]Instrument, error) {
-	path := c.apiURL + "/market/currencies"
-
-	return c.instruments(ctx, path)
-}
-
-func (c *RestClient) ETFs(ctx context.Context) ([]Instrument, error) {
-	path := c.apiURL + "/market/etfs"
-
-	return c.instruments(ctx, path)
-}
-
-func (c *RestClient) Bonds(ctx context.Context) ([]Instrument, error) {
-	path := c.apiURL + "/market/bonds"
-
-	return c.instruments(ctx, path)
-}
-
-func (c *RestClient) Stocks(ctx context.Context) ([]Instrument, error) {
-	path := c.apiURL + "/market/stocks"
-
-	return c.instruments(ctx, path)
-}
-
-func (c *RestClient) instruments(ctx context.Context, path string) ([]Instrument, error) {
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	type response struct {
+	var response struct {
 		Payload struct {
 			Instruments []Instrument `json:"instruments"`
 		} `json:"payload"`
 	}
 
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	path := c.url + "/market/currencies"
+
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w", err)
 	}
 
-	return resp.Payload.Instruments, nil
+	return response.Payload.Instruments, nil
 }
 
+// ETFs see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/market/get_market_etfs.
+func (c *RestClient) ETFs(ctx context.Context) ([]Instrument, error) {
+	var response struct {
+		Payload struct {
+			Instruments []Instrument `json:"instruments"`
+		} `json:"payload"`
+	}
+
+	path := c.url + "/market/etfs"
+
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w", err)
+	}
+
+	return response.Payload.Instruments, nil
+}
+
+// Bonds see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/market/get_market_bonds.
+func (c *RestClient) Bonds(ctx context.Context) ([]Instrument, error) {
+	var response struct {
+		Payload struct {
+			Instruments []Instrument `json:"instruments"`
+		} `json:"payload"`
+	}
+
+	path := c.url + "/market/bonds"
+
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w", err)
+	}
+
+	return response.Payload.Instruments, nil
+}
+
+// Stocks see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/market/get_market_stocks.
+func (c *RestClient) Stocks(ctx context.Context) ([]Instrument, error) {
+	var response struct {
+		Payload struct {
+			Instruments []Instrument `json:"instruments"`
+		} `json:"payload"`
+	}
+
+	path := c.url + "/market/stocks"
+
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w", err)
+	}
+
+	return response.Payload.Instruments, nil
+}
+
+// Operations see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/operations/get_operations.
 func (c *RestClient) Operations(ctx context.Context, accountID string, from, to time.Time, figi string) ([]Operation, error) {
+	var response struct {
+		Payload struct {
+			Operations []Operation `json:"operations"`
+		} `json:"payload"`
+	}
+
 	q := url.Values{
 		"from": []string{from.Format(time.RFC3339)},
 		"to":   []string{to.Format(time.RFC3339)},
@@ -152,32 +200,17 @@ func (c *RestClient) Operations(ctx context.Context, accountID string, from, to 
 		q.Set("brokerAccountId", accountID)
 	}
 
-	path := c.apiURL + "/operations?" + q.Encode()
+	path := c.url + "/operations?" + q.Encode()
 
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http get: %w", err)
 	}
 
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	type response struct {
-		Payload struct {
-			Operations []Operation `json:"operations"`
-		} `json:"payload"`
-	}
-
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
-	}
-
-	return resp.Payload.Operations, nil
+	return response.Payload.Operations, nil
 }
 
+// Portfolio contains calls two method for get portfolio info.
 func (c *RestClient) Portfolio(ctx context.Context, accountID string) (Portfolio, error) {
 	positions, err := c.PositionsPortfolio(ctx, accountID)
 	if err != nil {
@@ -195,80 +228,78 @@ func (c *RestClient) Portfolio(ctx context.Context, accountID string) (Portfolio
 	}, nil
 }
 
+// PositionsPortfolio see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/portfolio/get_portfolio.
 func (c *RestClient) PositionsPortfolio(ctx context.Context, accountID string) ([]PositionBalance, error) {
-	path := c.apiURL + "/portfolio"
-
-	if accountID != DefaultAccount {
-		path += "?brokerAccountId=" + accountID
-	}
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	type response struct {
+	var response struct {
 		Payload struct {
 			Positions []PositionBalance `json:"positions"`
 		} `json:"payload"`
 	}
 
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
-	}
-
-	return resp.Payload.Positions, nil
-}
-
-func (c *RestClient) CurrenciesPortfolio(ctx context.Context, accountID string) ([]CurrencyBalance, error) {
-	path := c.apiURL + "/portfolio/currencies"
+	path := c.url + "/portfolio"
 
 	if accountID != DefaultAccount {
 		path += "?brokerAccountId=" + accountID
 	}
 
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http get: %w", err)
 	}
 
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return nil, err
-	}
+	return response.Payload.Positions, nil
+}
 
-	type response struct {
+// CurrenciesPortfolio see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/portfolio/get_portfolio_currencies.
+func (c *RestClient) CurrenciesPortfolio(ctx context.Context, accountID string) ([]CurrencyBalance, error) {
+	var response struct {
 		Payload struct {
 			Currencies []CurrencyBalance `json:"currencies"`
 		} `json:"payload"`
 	}
 
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	path := c.url + "/portfolio/currencies"
+
+	if accountID != DefaultAccount {
+		path += "?brokerAccountId=" + accountID
 	}
 
-	return resp.Payload.Currencies, nil
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w", err)
+	}
+
+	return response.Payload.Currencies, nil
 }
 
+// OrderCancel see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/orders/post_orders_cancel.
 func (c *RestClient) OrderCancel(ctx context.Context, accountID, id string) error {
-	path := c.apiURL + "/orders/cancel?orderId=" + id
-
+	path := c.url + "/orders/cancel?orderId=" + id
 	if accountID != DefaultAccount {
 		path += "&brokerAccountId=" + accountID
 	}
 
-	return c.postJSONThrow(ctx, path, nil)
+	err := c.http.Post(ctx, path, c.header(c.token), nil, nil)
+	if err != nil {
+		return fmt.Errorf("http post: %w", err)
+	}
+
+	return nil
 }
 
-func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType, price float64) (PlacedOrder, error) {
-	path := c.apiURL + "/orders/limit-order?figi=" + figi
+// LimitOrder see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/orders/post_orders_limit_order.
+func (c *RestClient) LimitOrder(
+	ctx context.Context,
+	accountID, figi string,
+	lots int,
+	operation OperationType,
+	price float64,
+) (PlacedOrder, error) {
+	var response struct {
+		Payload PlacedOrder `json:"payload"`
+	}
+
+	path := c.url + "/orders/limit-order?figi=" + figi
 
 	if accountID != DefaultAccount {
 		path += "&brokerAccountId=" + accountID
@@ -279,36 +310,26 @@ func (c *RestClient) LimitOrder(ctx context.Context, accountID, figi string, lot
 		Operation OperationType `json:"operation"`
 		Price     float64       `json:"price"`
 	}{Lots: lots, Operation: operation, Price: price}
-
-	bb, err := json.Marshal(payload)
+	buf, err := json.Marshal(payload)
 	if err != nil {
-		return PlacedOrder{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
+		return PlacedOrder{}, fmt.Errorf("json marshal payload: %w", err)
 	}
 
-	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
+	err = c.http.Post(ctx, path, c.header(c.token), buf, &response)
 	if err != nil {
-		return PlacedOrder{}, err
+		return PlacedOrder{}, fmt.Errorf("http post: %w", err)
 	}
 
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return PlacedOrder{}, err
-	}
+	return response.Payload, nil
+}
 
-	type response struct {
+// MarketOrder see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/orders/post_orders_market_order.
+func (c *RestClient) MarketOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType) (PlacedOrder, error) {
+	var response struct {
 		Payload PlacedOrder `json:"payload"`
 	}
 
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return PlacedOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
-	}
-
-	return resp.Payload, nil
-}
-
-func (c *RestClient) MarketOrder(ctx context.Context, accountID, figi string, lots int, operation OperationType) (PlacedOrder, error) {
-	path := c.apiURL + "/orders/market-order?figi=" + figi
+	path := c.url + "/orders/market-order?figi=" + figi
 
 	if accountID != DefaultAccount {
 		path += "&brokerAccountId=" + accountID
@@ -319,82 +340,42 @@ func (c *RestClient) MarketOrder(ctx context.Context, accountID, figi string, lo
 		Operation OperationType `json:"operation"`
 	}{Lots: lots, Operation: operation}
 
-	bb, err := json.Marshal(payload)
+	buf, err := json.Marshal(payload)
 	if err != nil {
-		return PlacedOrder{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
+		return PlacedOrder{}, fmt.Errorf("json marshal payload: %w", err)
 	}
 
-	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
+	err = c.http.Post(ctx, path, c.header(c.token), buf, &response)
 	if err != nil {
-		return PlacedOrder{}, err
+		return PlacedOrder{}, fmt.Errorf("http post: %w", err)
 	}
 
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return PlacedOrder{}, err
-	}
-
-	type response struct {
-		Payload PlacedOrder `json:"payload"`
-	}
-
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return PlacedOrder{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
-	}
-
-	return resp.Payload, nil
+	return response.Payload, nil
 }
 
+// Orders see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/orders/get_orders.
 func (c *RestClient) Orders(ctx context.Context, accountID string) ([]Order, error) {
-	path := c.apiURL + "/orders"
+	var response struct {
+		Payload []Order `json:"payload"`
+	}
+
+	path := c.url + "/orders"
 
 	if accountID != DefaultAccount {
 		path += "?brokerAccountId=" + accountID
 	}
 
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http get: %w", err)
 	}
 
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	type response struct {
-		Payload []Order `json:"payload"`
-	}
-
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
-	}
-
-	return resp.Payload, nil
+	return response.Payload, nil
 }
 
+// Candles see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/market/get_market_candles.
 func (c *RestClient) Candles(ctx context.Context, from, to time.Time, interval CandleInterval, figi string) ([]Candle, error) {
-	q := url.Values{
-		"from":     []string{from.Format(time.RFC3339)},
-		"to":       []string{to.Format(time.RFC3339)},
-		"interval": []string{string(interval)},
-		"figi":     []string{figi},
-	}
-	path := c.apiURL + "/market/candles?" + q.Encode()
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	type response struct {
+	var response struct {
 		Payload struct {
 			FIGI     string         `json:"figi"`
 			Interval CandleInterval `json:"interval"`
@@ -402,15 +383,28 @@ func (c *RestClient) Candles(ctx context.Context, from, to time.Time, interval C
 		} `json:"payload"`
 	}
 
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
+	q := url.Values{
+		"from":     []string{from.Format(time.RFC3339)},
+		"to":       []string{to.Format(time.RFC3339)},
+		"interval": []string{string(interval)},
+		"figi":     []string{figi},
+	}
+	path := c.url + "/market/candles?" + q.Encode()
+
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	if err != nil {
+		return nil, fmt.Errorf("http get: %w", err)
 	}
 
-	return resp.Payload.Candles, nil
+	return response.Payload.Candles, nil
 }
 
+// Orderbook see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/market/get_market_orderbook.
 func (c *RestClient) Orderbook(ctx context.Context, depth int, figi string) (RestOrderBook, error) {
+	var response struct {
+		Payload RestOrderBook `json:"payload"`
+	}
+
 	if depth < 1 || depth > MaxOrderbookDepth {
 		return RestOrderBook{}, ErrDepth
 	}
@@ -419,137 +413,38 @@ func (c *RestClient) Orderbook(ctx context.Context, depth int, figi string) (Res
 		"depth": []string{strconv.Itoa(depth)},
 		"figi":  []string{figi},
 	}
-	path := c.apiURL + "/market/orderbook?" + q.Encode()
+	path := c.url + "/market/orderbook?" + q.Encode()
 
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
 	if err != nil {
-		return RestOrderBook{}, err
+		return RestOrderBook{}, fmt.Errorf("http get: %w", err)
 	}
 
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return RestOrderBook{}, err
-	}
-
-	type response struct {
-		Payload RestOrderBook `json:"payload"`
-	}
-
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return RestOrderBook{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
-	}
-
-	return resp.Payload, nil
+	return response.Payload, nil
 }
 
+// Accounts see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/user/get_user_accounts.
 func (c *RestClient) Accounts(ctx context.Context) ([]Account, error) {
-	path := c.apiURL + "/user/accounts"
-
-	req, err := c.newRequest(ctx, http.MethodGet, path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return nil, err
-	}
-
-	type response struct {
+	var response struct {
 		Payload struct {
 			Accounts []Account `json:"accounts"`
 		} `json:"payload"`
 	}
 
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return nil, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
-	}
+	path := c.url + "/user/accounts"
 
-	return resp.Payload.Accounts, nil
-}
-
-func (c *RestClient) postJSONThrow(ctx context.Context, url string, body interface{}) error {
-	var bb []byte
-	var err error
-
-	if body != nil {
-		bb, err = json.Marshal(body)
-		if err != nil {
-			return errors.Errorf("can't marshal request body to %s", url)
-		}
-	}
-
-	req, err := c.newRequest(ctx, http.MethodPost, url, bytes.NewReader(bb))
+	err := c.http.Get(ctx, path, c.header(c.token), &response)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("http get: %w", err)
 	}
 
-	_, err = c.doRequest(req)
-	return err
+	return response.Payload.Accounts, nil
 }
 
-func (c *RestClient) newRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		return nil, errors.Errorf("can't create http request to %s", url)
-	}
+func (c *RestClient) header(token string) http.Header {
+	header := http.Header{}
+	header.Set("Content-Type", "application/json")
+	header.Set("Authorization", "Bearer "+token)
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+c.token)
-
-	return req.WithContext(ctx), nil
-}
-
-func (c *RestClient) doRequest(req *http.Request) ([]byte, error) {
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "can't do request to %s", req.URL.RawPath)
-	}
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Wrapf(err, "can't read response body to %s", req.URL.RawPath)
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-	case http.StatusNotFound:
-		return nil, ErrNotFound
-	default:
-		var tradingError TradingError
-		if err := json.Unmarshal(body, &tradingError); err == nil {
-			return nil, tradingError
-		}
-		return nil, errors.Errorf("bad response to %s code=%d, body=%s", req.URL, resp.StatusCode, body)
-	}
-
-	return body, nil
-}
-
-type TradingError struct {
-	TrackingID string `json:"trackingId"`
-	Status     string `json:"status"`
-	Hint       string
-	Payload    struct {
-		Message string `json:"message"`
-		Code    string `json:"code"`
-	} `json:"payload"`
-}
-
-func (t TradingError) Error() string {
-	return fmt.Sprintf(
-		"TrackingID: %s, Status: %s, Message: %s, Code: %s, Hint: %s",
-		t.TrackingID, t.Status, t.Payload.Message, t.Payload.Code, t.Hint,
-	)
-}
-
-func (t TradingError) NotEnoughBalance() bool {
-	return t.Payload.Code == "NOT_ENOUGH_BALANCE"
-}
-
-func (t TradingError) InvalidTokenSpace() bool {
-	return t.Payload.Message == "Invalid token scopes"
+	return header
 }

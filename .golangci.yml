@@ -1,0 +1,22 @@
+run:
+  tests: false
+  skip-dirs:
+    - examples
+  skip-files:
+    - rest_domain.go
+    - streaming_client.go
+    - streaming_domain.go
+
+linters-settings:
+  lll:
+    line-length: 190
+  maligned:
+    suggest-new: true
+
+linters:
+  enable-all: true
+  disable:
+    - wsl
+    - exhaustivestruct
+  fast: false
+

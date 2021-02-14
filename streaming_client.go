@@ -123,7 +123,6 @@ func (c *StreamingClient) UnsubscribeCandle(figi string, interval CandleInterval
 	return nil
 }
 
-var ErrDepth = errors.Errorf("invalid depth. Should be in interval 0 < x <= %d", MaxOrderbookDepth)
 
 func (c *StreamingClient) SubscribeOrderbook(figi string, depth int, requestID string) error {
 	if depth < 1 || depth > MaxOrderbookDepth {

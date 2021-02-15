@@ -5,16 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
-var _ HTTP = &defaultHTTP{}
+var _ Provider = &defaultHTTP{}
 
 type (
-	// HTTP interface for change http client.
-	HTTP interface {
-		Get(ctx context.Context, url string, header http.Header, unmarshal interface{}) error
-		Post(ctx context.Context, url string, header http.Header, body []byte, unmarshal interface{}) error
+	// Provider interface for change provider client.
+	Provider interface {
+		Get(ctx context.Context, url string, token string, unmarshal interface{}) error
+		Post(ctx context.Context, url string, token string, payload, unmarshal interface{}) error
 	}
 
 	defaultHTTP struct {
@@ -22,17 +23,28 @@ type (
 	}
 )
 
-// Post for implements HTTP.
-func (c *defaultHTTP) Post(ctx context.Context, url string, header http.Header, body []byte, unmarshal interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
+// Post for implements Provider.
+func (c *defaultHTTP) Post(ctx context.Context, url string, token string, payload, unmarshal interface{}) error {
+	var body io.ReadWriter
+	if payload != nil {
+		buf, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("json marslal: %w", err)
+		}
+		body = bytes.NewBuffer(buf)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return fmt.Errorf("build new request: %w", err)
 	}
-	req.Header = header
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := c.do(req)
 	if err != nil {
-		return fmt.Errorf("http do: %w", err)
+		return fmt.Errorf("provider do: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -46,17 +58,19 @@ func (c *defaultHTTP) Post(ctx context.Context, url string, header http.Header, 
 	return nil
 }
 
-// Get for implements HTTP.
-func (c *defaultHTTP) Get(ctx context.Context, url string, header http.Header, unmarshal interface{}) error {
+// Get for implements Provider.
+func (c *defaultHTTP) Get(ctx context.Context, url string, token string, unmarshal interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("build new request: %w", err)
 	}
-	req.Header = header
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := c.do(req)
 	if err != nil {
-		return fmt.Errorf("http do: %w", err)
+		return fmt.Errorf("provider do: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -71,7 +85,7 @@ func (c *defaultHTTP) Get(ctx context.Context, url string, header http.Header, u
 func (c *defaultHTTP) do(req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("http client do: %w", err)
+		return nil, fmt.Errorf("provider client do: %w", err)
 	}
 
 	switch resp.StatusCode {

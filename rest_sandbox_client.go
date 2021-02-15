@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 )
 
@@ -33,14 +32,9 @@ func (c *SandboxRestClient) Register(ctx context.Context, accountType AccountTyp
 		AccountType AccountType `json:"brokerAccountType"`
 	}{AccountType: accountType}
 
-	buf, err := json.Marshal(payload)
+	err := c.provider.Post(ctx, path, c.token, payload, &response)
 	if err != nil {
-		return Account{}, fmt.Errorf("json marshal payload: %w", err)
-	}
-
-	err = c.http.Post(ctx, path, c.header(c.token), buf, &response)
-	if err != nil {
-		return Account{}, fmt.Errorf("http post: %w", err)
+		return Account{}, fmt.Errorf("provider post: %w", err)
 	}
 
 	return response.Payload, nil
@@ -54,9 +48,9 @@ func (c *SandboxRestClient) Clear(ctx context.Context, accountID string) error {
 		path += "?brokerAccountId=" + accountID
 	}
 
-	err := c.http.Post(ctx, path, c.header(c.token), nil, nil)
+	err := c.provider.Post(ctx, path, c.token, nil, nil)
 	if err != nil {
-		return fmt.Errorf("http post: %w", err)
+		return fmt.Errorf("provider post: %w", err)
 	}
 
 	return nil
@@ -70,9 +64,9 @@ func (c *SandboxRestClient) Remove(ctx context.Context, accountID string) error 
 		path += "?brokerAccountId=" + accountID
 	}
 
-	err := c.http.Post(ctx, path, c.header(c.token), nil, nil)
+	err := c.provider.Post(ctx, path, c.token, nil, nil)
 	if err != nil {
-		return fmt.Errorf("http post: %w", err)
+		return fmt.Errorf("provider post: %w", err)
 	}
 
 	return nil
@@ -92,14 +86,9 @@ func (c *SandboxRestClient) SetCurrencyBalance(ctx context.Context, accountID st
 		payload.AccountID = accountID
 	}
 
-	buf, err := json.Marshal(payload)
+	err := c.provider.Post(ctx, path, c.token, payload, nil)
 	if err != nil {
-		return fmt.Errorf("json marshal payload: %w", err)
-	}
-
-	err = c.http.Post(ctx, path, c.header(c.token), buf, nil)
-	if err != nil {
-		return fmt.Errorf("http post: %w", err)
+		return fmt.Errorf("provider post: %w", err)
 	}
 
 	return nil
@@ -119,14 +108,9 @@ func (c *SandboxRestClient) SetPositionsBalance(ctx context.Context, accountID, 
 		payload.AccountID = accountID
 	}
 
-	buf, err := json.Marshal(payload)
+	err := c.provider.Post(ctx, path, c.token, payload, nil)
 	if err != nil {
-		return fmt.Errorf("json marshal payload: %w", err)
-	}
-
-	err = c.http.Post(ctx, path, c.header(c.token), buf, nil)
-	if err != nil {
-		return fmt.Errorf("http post: %w", err)
+		return fmt.Errorf("provider post: %w", err)
 	}
 
 	return nil

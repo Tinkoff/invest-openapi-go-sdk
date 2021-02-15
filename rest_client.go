@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,26 +19,26 @@ var (
 const (
 	// RestAPIURL contains main api url for tinkoff invest api.
 	RestAPIURL = "https://api-invest.tinkoff.ru/openapi"
-	// MaxTimeout for http request.
+	// MaxTimeout for provider request.
 	MaxTimeout = time.Second * 30
 )
 
 type (
 	// RestClient provide to rest methods from tinkoff invest api.
 	RestClient struct {
-		http  HTTP
-		token string
-		url   string
+		provider Provider
+		token    string
+		url      string
 	}
 
 	// BuildOption build options for rest client.
 	BuildOption func(*RestClient)
 )
 
-// WithClient build rest client by custom http client.
-func WithClient(http HTTP) BuildOption {
+// WithProvider build rest client by custom provider client.
+func WithProvider(p Provider) BuildOption {
 	return func(client *RestClient) {
-		client.http = http
+		client.provider = p
 	}
 }
 
@@ -53,7 +52,7 @@ func WithURL(url string) BuildOption {
 // NewRestClient build rest client by option.
 func NewRestClient(token string, options ...BuildOption) *RestClient {
 	client := &RestClient{
-		http: &defaultHTTP{
+		provider: &defaultHTTP{
 			client: &http.Client{
 				Transport: http.DefaultTransport,
 				Timeout:   MaxTimeout,
@@ -83,9 +82,9 @@ func (c *RestClient) InstrumentByFIGI(ctx context.Context, figi string) (Instrum
 	}
 
 	path := c.url + "/market/search/by-figi?figi=" + figi
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return Instrument{}, fmt.Errorf("http get: %w", err)
+		return Instrument{}, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload, nil
@@ -101,9 +100,9 @@ func (c *RestClient) InstrumentByTicker(ctx context.Context, ticker string) ([]I
 
 	path := c.url + "/market/search/by-ticker?ticker=" + ticker
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Instruments, nil
@@ -119,9 +118,9 @@ func (c *RestClient) Currencies(ctx context.Context) ([]Instrument, error) {
 
 	path := c.url + "/market/currencies"
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Instruments, nil
@@ -137,9 +136,9 @@ func (c *RestClient) ETFs(ctx context.Context) ([]Instrument, error) {
 
 	path := c.url + "/market/etfs"
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Instruments, nil
@@ -155,9 +154,9 @@ func (c *RestClient) Bonds(ctx context.Context) ([]Instrument, error) {
 
 	path := c.url + "/market/bonds"
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Instruments, nil
@@ -173,9 +172,9 @@ func (c *RestClient) Stocks(ctx context.Context) ([]Instrument, error) {
 
 	path := c.url + "/market/stocks"
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Instruments, nil
@@ -202,9 +201,9 @@ func (c *RestClient) Operations(ctx context.Context, accountID string, from, to 
 
 	path := c.url + "/operations?" + q.Encode()
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Operations, nil
@@ -242,9 +241,9 @@ func (c *RestClient) PositionsPortfolio(ctx context.Context, accountID string) (
 		path += "?brokerAccountId=" + accountID
 	}
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Positions, nil
@@ -264,9 +263,9 @@ func (c *RestClient) CurrenciesPortfolio(ctx context.Context, accountID string) 
 		path += "?brokerAccountId=" + accountID
 	}
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Currencies, nil
@@ -279,9 +278,9 @@ func (c *RestClient) OrderCancel(ctx context.Context, accountID, id string) erro
 		path += "&brokerAccountId=" + accountID
 	}
 
-	err := c.http.Post(ctx, path, c.header(c.token), nil, nil)
+	err := c.provider.Post(ctx, path, c.token, nil, nil)
 	if err != nil {
-		return fmt.Errorf("http post: %w", err)
+		return fmt.Errorf("provider post: %w", err)
 	}
 
 	return nil
@@ -310,14 +309,10 @@ func (c *RestClient) LimitOrder(
 		Operation OperationType `json:"operation"`
 		Price     float64       `json:"price"`
 	}{Lots: lots, Operation: operation, Price: price}
-	buf, err := json.Marshal(payload)
-	if err != nil {
-		return PlacedOrder{}, fmt.Errorf("json marshal payload: %w", err)
-	}
 
-	err = c.http.Post(ctx, path, c.header(c.token), buf, &response)
+	err := c.provider.Post(ctx, path, c.token, payload, &response)
 	if err != nil {
-		return PlacedOrder{}, fmt.Errorf("http post: %w", err)
+		return PlacedOrder{}, fmt.Errorf("provider post: %w", err)
 	}
 
 	return response.Payload, nil
@@ -340,14 +335,9 @@ func (c *RestClient) MarketOrder(ctx context.Context, accountID, figi string, lo
 		Operation OperationType `json:"operation"`
 	}{Lots: lots, Operation: operation}
 
-	buf, err := json.Marshal(payload)
+	err := c.provider.Post(ctx, path, c.token, payload, &response)
 	if err != nil {
-		return PlacedOrder{}, fmt.Errorf("json marshal payload: %w", err)
-	}
-
-	err = c.http.Post(ctx, path, c.header(c.token), buf, &response)
-	if err != nil {
-		return PlacedOrder{}, fmt.Errorf("http post: %w", err)
+		return PlacedOrder{}, fmt.Errorf("provider post: %w", err)
 	}
 
 	return response.Payload, nil
@@ -365,9 +355,9 @@ func (c *RestClient) Orders(ctx context.Context, accountID string) ([]Order, err
 		path += "?brokerAccountId=" + accountID
 	}
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload, nil
@@ -391,9 +381,9 @@ func (c *RestClient) Candles(ctx context.Context, from, to time.Time, interval C
 	}
 	path := c.url + "/market/candles?" + q.Encode()
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Candles, nil
@@ -415,9 +405,9 @@ func (c *RestClient) Orderbook(ctx context.Context, depth int, figi string) (Res
 	}
 	path := c.url + "/market/orderbook?" + q.Encode()
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return RestOrderBook{}, fmt.Errorf("http get: %w", err)
+		return RestOrderBook{}, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload, nil
@@ -433,18 +423,10 @@ func (c *RestClient) Accounts(ctx context.Context) ([]Account, error) {
 
 	path := c.url + "/user/accounts"
 
-	err := c.http.Get(ctx, path, c.header(c.token), &response)
+	err := c.provider.Get(ctx, path, c.token, &response)
 	if err != nil {
-		return nil, fmt.Errorf("http get: %w", err)
+		return nil, fmt.Errorf("provider get: %w", err)
 	}
 
 	return response.Payload.Accounts, nil
-}
-
-func (c *RestClient) header(token string) http.Header {
-	header := http.Header{}
-	header.Set("Content-Type", "application/json")
-	header.Set("Authorization", "Bearer "+token)
-
-	return header
 }

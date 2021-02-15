@@ -1,82 +1,80 @@
 package sdk
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
-
-	"github.com/pkg/errors"
+	"fmt"
 )
 
+// SandboxRestClient rest client for sandbox tinkoff invest.
 type SandboxRestClient struct {
 	*RestClient
 }
 
+// NewSandboxRestClient returns new SandboxRestClient by token.
 func NewSandboxRestClient(token string) *SandboxRestClient {
-	return &SandboxRestClient{NewRestClientCustom(token, RestApiURL+"/sandbox")}
+	return &SandboxRestClient{RestClient: NewRestClient(token, WithURL(RestAPIURL+"/sandbox"))}
 }
 
+// NewSandboxRestClientCustom returns new custom SandboxRestClient by token and api url.
 func NewSandboxRestClientCustom(token, apiURL string) *SandboxRestClient {
-	return &SandboxRestClient{NewRestClientCustom(token, apiURL)}
+	return &SandboxRestClient{RestClient: NewRestClient(token, WithURL(apiURL))}
 }
 
+// Register see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/sandbox/post_sandbox_register.
 func (c *SandboxRestClient) Register(ctx context.Context, accountType AccountType) (Account, error) {
-	path := c.apiURL + "/sandbox/register"
+	var response struct {
+		Payload Account `json:"payload"`
+	}
+
+	path := c.url + "/sandbox/register"
 
 	payload := struct {
 		AccountType AccountType `json:"brokerAccountType"`
 	}{AccountType: accountType}
 
-	bb, err := json.Marshal(payload)
+	err := c.provider.Post(ctx, path, c.token, payload, &response)
 	if err != nil {
-		return Account{}, errors.Errorf("can't marshal request to %s body=%+v", path, payload)
+		return Account{}, fmt.Errorf("provider post: %w", err)
 	}
 
-	req, err := c.newRequest(ctx, http.MethodPost, path, bytes.NewReader(bb))
-	if err != nil {
-		return Account{}, err
-	}
-
-	respBody, err := c.doRequest(req)
-	if err != nil {
-		return Account{}, err
-	}
-
-	type response struct {
-		Payload Account `json:"payload"`
-	}
-
-	var resp response
-	if err = json.Unmarshal(respBody, &resp); err != nil {
-		return Account{}, errors.Wrapf(err, "can't unmarshal response to %s, respBody=%s", path, respBody)
-	}
-
-	return resp.Payload, nil
+	return response.Payload, nil
 }
 
+// Clear see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/sandbox/post_sandbox_clear.
 func (c *SandboxRestClient) Clear(ctx context.Context, accountID string) error {
-	path := c.apiURL + "/sandbox/clear"
+	path := c.url + "/sandbox/clear"
 
 	if accountID != DefaultAccount {
 		path += "?brokerAccountId=" + accountID
 	}
 
-	return c.postJSONThrow(ctx, path, nil)
+	err := c.provider.Post(ctx, path, c.token, nil, nil)
+	if err != nil {
+		return fmt.Errorf("provider post: %w", err)
+	}
+
+	return nil
 }
 
+// Remove see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/sandbox/post_sandbox_remove.
 func (c *SandboxRestClient) Remove(ctx context.Context, accountID string) error {
-	path := c.apiURL + "/sandbox/remove"
+	path := c.url + "/sandbox/remove"
 
 	if accountID != DefaultAccount {
 		path += "?brokerAccountId=" + accountID
 	}
 
-	return c.postJSONThrow(ctx, path, nil)
+	err := c.provider.Post(ctx, path, c.token, nil, nil)
+	if err != nil {
+		return fmt.Errorf("provider post: %w", err)
+	}
+
+	return nil
 }
 
+// SetCurrencyBalance see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/sandbox/post_sandbox_currencies_balance.
 func (c *SandboxRestClient) SetCurrencyBalance(ctx context.Context, accountID string, currency Currency, balance float64) error {
-	path := c.apiURL + "/sandbox/currencies/balance"
+	path := c.url + "/sandbox/currencies/balance"
 
 	payload := struct {
 		Currency  Currency `json:"currency"`
@@ -88,11 +86,17 @@ func (c *SandboxRestClient) SetCurrencyBalance(ctx context.Context, accountID st
 		payload.AccountID = accountID
 	}
 
-	return c.postJSONThrow(ctx, path, payload)
+	err := c.provider.Post(ctx, path, c.token, payload, nil)
+	if err != nil {
+		return fmt.Errorf("provider post: %w", err)
+	}
+
+	return nil
 }
 
+// SetPositionsBalance see docs https://tinkoffcreditsystems.github.io/invest-openapi/swagger-ui/#/sandbox/post_sandbox_positions_balance.
 func (c *SandboxRestClient) SetPositionsBalance(ctx context.Context, accountID, figi string, balance float64) error {
-	path := c.apiURL + "/sandbox/positions/balance"
+	path := c.url + "/sandbox/positions/balance"
 
 	payload := struct {
 		FIGI      string  `json:"figi"`
@@ -104,5 +108,10 @@ func (c *SandboxRestClient) SetPositionsBalance(ctx context.Context, accountID, 
 		payload.AccountID = accountID
 	}
 
-	return c.postJSONThrow(ctx, path, payload)
+	err := c.provider.Post(ctx, path, c.token, payload, nil)
+	if err != nil {
+		return fmt.Errorf("provider post: %w", err)
+	}
+
+	return nil
 }

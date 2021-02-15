@@ -25,16 +25,16 @@ const (
 type TradingStatus string
 
 const (
-	BreakInTrading               TradingStatus = "break_in_trading"
-	NormalTrading                TradingStatus = "normal_trading"
-	NotAvailableForTrading       TradingStatus = "not_available_for_trading"
-	ClosingAuction               TradingStatus = "closing_auction"
-	ClosingPeriod                TradingStatus = "closing_period"
-	DarkPoolAuction              TradingStatus = "dark_pool_auction"
-	DiscreteAuction              TradingStatus = "discrete_auction"
-	OpeningPeriod                TradingStatus = "opening_period"
-	OpeningAuctionPeriod         TradingStatus = "opening_auction_period"
-	TradingAtClosingAuctionPrice TradingStatus = "trading_at_closing_auction_price"
+	BreakInTrading               TradingStatus = "BreakInTrading"
+	NormalTrading                TradingStatus = "NormalTrading"
+	NotAvailableForTrading       TradingStatus = "NotAvailableForTrading"
+	ClosingAuction               TradingStatus = "ClosingAuction"
+	ClosingPeriod                TradingStatus = "ClosingPeriod"
+	DarkPoolAuction              TradingStatus = "DarkPoolAuction"
+	DiscreteAuction              TradingStatus = "DiscreteAuction"
+	OpeningPeriod                TradingStatus = "OpeningPeriod"
+	OpeningAuctionPeriod         TradingStatus = "OpeningAuctionPeriod"
+	TradingAtClosingAuctionPrice TradingStatus = "TradingAtClosingAuctionPrice"
 )
 
 type Event struct {

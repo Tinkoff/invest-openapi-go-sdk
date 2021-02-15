@@ -1,5 +1,7 @@
 # OpenAPI Go SDK
 
+[![GoDoc](https://godoc.org/github.com/TinkoffCreditSystems/invest-openapi-go-sdk?status.svg)](https://pkg.go.dev/github.com/TinkoffCreditSystems/invest-openapi-go-sdk)
+
 Данный проект представляет собой инструментарий на языке Go для работы с OpenAPI Тинькофф Инвестиции, который можно использовать для создания торговых роботов.
 
 ## Начало работы

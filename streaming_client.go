@@ -13,6 +13,9 @@ import (
 
 const StreamingApiURL = "wss://api-invest.tinkoff.ru/openapi/md/v1/md-openapi/ws"
 
+const DefaultPongWait = 60 * time.Second
+const DefaultPingPeriod = 54 * time.Second
+
 type Logger interface {
 	Printf(format string, args ...interface{})
 }
@@ -34,13 +37,17 @@ func NewStreamingClient(logger Logger, token string) (*StreamingClient, error) {
 }
 
 func NewStreamingClientCustom(logger Logger, token, apiURL string) (*StreamingClient, error) {
+	return NewStreamingClientCustomPingPong(logger, token, apiURL, DefaultPongWait, DefaultPingPeriod)
+}
+
+func NewStreamingClientCustomPingPong(logger Logger, token, apiURL string, pongWait time.Duration, pingPeriod time.Duration) (*StreamingClient, error) {
 	client := &StreamingClient{
 		logger: logger,
 		token:  token,
 		apiURL: apiURL,
 
-		pongWait:   60 * time.Second,
-		pingPeriod: 54 * time.Second,
+		pongWait:   pongWait,
+		pingPeriod: pingPeriod,
 	}
 
 	conn, err := client.connect()

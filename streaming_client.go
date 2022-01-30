@@ -20,16 +20,20 @@ type Logger interface {
 	Printf(format string, args ...interface{})
 }
 
+type PingPongConfig struct {
+	isEnabled  bool
+	pongWait   time.Duration
+	pingPeriod time.Duration
+}
+
 type StreamingClient struct {
 	logger Logger
 	conn   *websocket.Conn
 	token  string
 	apiURL string
 
-	pongWait   time.Duration
-	pingPeriod time.Duration
-
-	pingTicker *time.Ticker
+	pingPongCfg *PingPongConfig
+	pingTicker  *time.Ticker
 }
 
 func NewStreamingClient(logger Logger, token string) (*StreamingClient, error) {
@@ -37,17 +41,16 @@ func NewStreamingClient(logger Logger, token string) (*StreamingClient, error) {
 }
 
 func NewStreamingClientCustom(logger Logger, token, apiURL string) (*StreamingClient, error) {
-	return NewStreamingClientCustomPingPong(logger, token, apiURL, DefaultPongWait, DefaultPingPeriod)
+	return NewStreamingClientCustomPingPong(logger, token, apiURL, &PingPongConfig{false, DefaultPongWait, DefaultPingPeriod})
 }
 
-func NewStreamingClientCustomPingPong(logger Logger, token, apiURL string, pongWait time.Duration, pingPeriod time.Duration) (*StreamingClient, error) {
+func NewStreamingClientCustomPingPong(logger Logger, token, apiURL string, pingPongCfg *PingPongConfig) (*StreamingClient, error) {
 	client := &StreamingClient{
 		logger: logger,
 		token:  token,
 		apiURL: apiURL,
 
-		pongWait:   pongWait,
-		pingPeriod: pingPeriod,
+		pingPongCfg: pingPongCfg,
 	}
 
 	conn, err := client.connect()
@@ -60,6 +63,8 @@ func NewStreamingClientCustomPingPong(logger Logger, token, apiURL string, pongW
 }
 
 func (c *StreamingClient) Close() error {
+	c.pingTicker.Stop()
+
 	return c.conn.Close()
 }
 
@@ -207,32 +212,34 @@ func (c *StreamingClient) connect() (*websocket.Conn, error) {
 	}
 	defer resp.Body.Close()
 
-	conn.SetReadDeadline(time.Now().Add(c.pongWait))
+	if c.pingPongCfg.isEnabled {
+		conn.SetReadDeadline(time.Now().Add(c.pingPongCfg.pongWait))
 
-	conn.SetPingHandler(func(message string) error {
-		err := conn.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
-		if err == websocket.ErrCloseSent {
+		conn.SetPingHandler(func(message string) error {
+			err := conn.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+			if err == websocket.ErrCloseSent {
+				return nil
+			} else if e, ok := err.(net.Error); ok && e.Temporary() {
+				return nil
+			}
+			return err
+		})
+
+		conn.SetPongHandler(func(string) error {
+			conn.SetReadDeadline(time.Now().Add(c.pingPongCfg.pongWait))
 			return nil
-		} else if e, ok := err.(net.Error); ok && e.Temporary() {
-			return nil
-		}
-		return err
-	})
+		})
 
-	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(c.pongWait))
-		return nil
-	})
+		c.pingTicker = time.NewTicker(c.pingPongCfg.pingPeriod)
 
-	c.pingTicker = time.NewTicker(c.pingPeriod)
+		go func() {
+			<-c.pingTicker.C
 
-	go func() {
-		<-c.pingTicker.C
-
-		if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-			return
-		}
-	}()
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}()
+	}
 
 	return conn, nil
 }

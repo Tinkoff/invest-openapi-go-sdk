@@ -22,6 +22,11 @@ type StreamingClient struct {
 	conn   *websocket.Conn
 	token  string
 	apiURL string
+
+	pongWait   time.Duration
+	pingPeriod time.Duration
+
+	pingTicker *time.Ticker
 }
 
 func NewStreamingClient(logger Logger, token string) (*StreamingClient, error) {
@@ -33,6 +38,9 @@ func NewStreamingClientCustom(logger Logger, token, apiURL string) (*StreamingCl
 		logger: logger,
 		token:  token,
 		apiURL: apiURL,
+
+		pongWait:   60 * time.Second,
+		pingPeriod: 54 * time.Second,
 	}
 
 	conn, err := client.connect()
@@ -123,7 +131,6 @@ func (c *StreamingClient) UnsubscribeCandle(figi string, interval CandleInterval
 	return nil
 }
 
-
 func (c *StreamingClient) SubscribeOrderbook(figi string, depth int, requestID string) error {
 	if depth < 1 || depth > MaxOrderbookDepth {
 		return ErrDepth
@@ -193,6 +200,8 @@ func (c *StreamingClient) connect() (*websocket.Conn, error) {
 	}
 	defer resp.Body.Close()
 
+	conn.SetReadDeadline(time.Now().Add(c.pongWait))
+
 	conn.SetPingHandler(func(message string) error {
 		err := conn.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
 		if err == websocket.ErrCloseSent {
@@ -202,6 +211,21 @@ func (c *StreamingClient) connect() (*websocket.Conn, error) {
 		}
 		return err
 	})
+
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(c.pongWait))
+		return nil
+	})
+
+	c.pingTicker = time.NewTicker(c.pingPeriod)
+
+	go func() {
+		<-c.pingTicker.C
+
+		if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			return
+		}
+	}()
 
 	return conn, nil
 }

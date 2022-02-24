@@ -13,8 +13,17 @@ import (
 
 const StreamingApiURL = "wss://api-invest.tinkoff.ru/openapi/md/v1/md-openapi/ws"
 
+const DefaultPongWait = 60 * time.Second
+const DefaultPingPeriod = 54 * time.Second
+
 type Logger interface {
 	Printf(format string, args ...interface{})
+}
+
+type PingPongConfig struct {
+	isEnabled  bool
+	pongWait   time.Duration
+	pingPeriod time.Duration
 }
 
 type StreamingClient struct {
@@ -22,6 +31,9 @@ type StreamingClient struct {
 	conn   *websocket.Conn
 	token  string
 	apiURL string
+
+	pingPongCfg *PingPongConfig
+	pingTicker  *time.Ticker
 }
 
 func NewStreamingClient(logger Logger, token string) (*StreamingClient, error) {
@@ -29,10 +41,16 @@ func NewStreamingClient(logger Logger, token string) (*StreamingClient, error) {
 }
 
 func NewStreamingClientCustom(logger Logger, token, apiURL string) (*StreamingClient, error) {
+	return NewStreamingClientCustomPingPong(logger, token, apiURL, &PingPongConfig{false, DefaultPongWait, DefaultPingPeriod})
+}
+
+func NewStreamingClientCustomPingPong(logger Logger, token, apiURL string, pingPongCfg *PingPongConfig) (*StreamingClient, error) {
 	client := &StreamingClient{
 		logger: logger,
 		token:  token,
 		apiURL: apiURL,
+
+		pingPongCfg: pingPongCfg,
 	}
 
 	conn, err := client.connect()
@@ -45,6 +63,8 @@ func NewStreamingClientCustom(logger Logger, token, apiURL string) (*StreamingCl
 }
 
 func (c *StreamingClient) Close() error {
+	c.pingTicker.Stop()
+
 	return c.conn.Close()
 }
 
@@ -123,7 +143,6 @@ func (c *StreamingClient) UnsubscribeCandle(figi string, interval CandleInterval
 	return nil
 }
 
-
 func (c *StreamingClient) SubscribeOrderbook(figi string, depth int, requestID string) error {
 	if depth < 1 || depth > MaxOrderbookDepth {
 		return ErrDepth
@@ -193,15 +212,34 @@ func (c *StreamingClient) connect() (*websocket.Conn, error) {
 	}
 	defer resp.Body.Close()
 
-	conn.SetPingHandler(func(message string) error {
-		err := conn.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
-		if err == websocket.ErrCloseSent {
+	if c.pingPongCfg.isEnabled {
+		conn.SetReadDeadline(time.Now().Add(c.pingPongCfg.pongWait))
+
+		conn.SetPingHandler(func(message string) error {
+			err := conn.WriteControl(websocket.PongMessage, []byte(message), time.Now().Add(time.Second))
+			if err == websocket.ErrCloseSent {
+				return nil
+			} else if e, ok := err.(net.Error); ok && e.Temporary() {
+				return nil
+			}
+			return err
+		})
+
+		conn.SetPongHandler(func(string) error {
+			conn.SetReadDeadline(time.Now().Add(c.pingPongCfg.pongWait))
 			return nil
-		} else if e, ok := err.(net.Error); ok && e.Temporary() {
-			return nil
-		}
-		return err
-	})
+		})
+
+		c.pingTicker = time.NewTicker(c.pingPongCfg.pingPeriod)
+
+		go func() {
+			<-c.pingTicker.C
+
+			if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}()
+	}
 
 	return conn, nil
 }

@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	sdk "github.com/TinkoffCreditSystems/invest-openapi-go-sdk"
+	sdk "github.com/Tinkoff/invest-openapi-go-sdk"
 )
 
 var token = flag.String("token", "", "your token")

@@ -18,7 +18,7 @@ var (
 
 const (
 	// RestAPIURL contains main api url for tinkoff invest api.
-	RestAPIURL = "https://api-invest.tinkoff.ru/openapi"
+	RestAPIURL = "https://invest-public-api.tinkoff.ru/rest"
 	// MaxTimeout for provider request.
 	MaxTimeout = time.Second * 30
 )
